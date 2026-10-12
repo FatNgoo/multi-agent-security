@@ -1,0 +1,19 @@
+
+# Backend API
+fastapi
+uvicorn[standard]
+pydantic
+pydantic-settings
+
+# LLM and Multi-Agent
+openai
+langchain
+langgraph
+langchain-openai
+
+# Data processing
+pandas
+numpy
+
+# Environment configuration
+python-dotenv
