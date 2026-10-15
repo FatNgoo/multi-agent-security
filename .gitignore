@@ -1,11 +1,9 @@
-
 .venv/
 .env
 __pycache__/
 .pytest_cache/
-.ruff_cache/
 *.pyc
 *.db
-data/raw/
-data/processed/
-.vscode/
+.pytest-db*
+tests
+data

@@ -1,19 +1,12 @@
-
-# Backend API
-fastapi
-uvicorn[standard]
-pydantic
-pydantic-settings
-
-# LLM and Multi-Agent
-openai
-langchain
-langgraph
-langchain-openai
-
-# Data processing
-pandas
-numpy
-
-# Environment configuration
-python-dotenv
+fastapi>=0.115,<1
+uvicorn[standard]>=0.30,<1
+pydantic>=2.8,<3
+pydantic-settings>=2.4,<3
+langgraph>=0.3,<2
+openai>=1.60,<3
+sqlalchemy>=2.0,<3
+psycopg[binary]>=3.2,<4
+python-multipart>=0.0.9,<1
+pytest>=8,<10
+httpx>=0.27,<1
+defusedxml>=0.7.1,<1
