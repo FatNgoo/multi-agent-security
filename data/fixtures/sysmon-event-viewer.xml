@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Events xmlns="http://schemas.microsoft.com/win/2004/08/events/event">
+  <Event><System><Provider Name="Microsoft-Windows-Sysmon"/><EventID>1</EventID><TimeCreated SystemTime="2026-10-14T08:03:10.1234567Z"/><Computer>WIN-LAB-01</Computer></System><EventData><Data Name="Image">C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe</Data><Data Name="CommandLine">powershell.exe -NoProfile</Data></EventData></Event>
+  <Event><System><Provider Name="Microsoft-Windows-Sysmon"/><EventID>13</EventID><TimeCreated SystemTime="2026-10-14T08:04:10.5000000Z"/><Computer>WIN-LAB-01</Computer></System><EventData><Data Name="Image">C:\Windows\System32\reg.exe</Data><Data Name="TargetObject">HKCU\Software\Microsoft\Windows\CurrentVersion\Run\Demo</Data><Data Name="Details">C:\Lab\demo.exe</Data></EventData></Event>
+</Events>

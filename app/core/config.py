@@ -1,4 +1,6 @@
 from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic import Field
+from typing import Literal
 
 
 class Settings(BaseSettings):
@@ -11,6 +13,22 @@ class Settings(BaseSettings):
     deepseek_base_url: str = "https://api.deepseek.com"
     database_url: str = "sqlite:///./local-dev.db"
     max_upload_bytes: int = 5_000_000
+    max_records: int = Field(default=1000, ge=10, le=20000)
+    max_tool_calls: int = Field(default=16, ge=3, le=100)
+    max_agent_iterations: int = Field(default=3, ge=1, le=8)
+    llm_timeout_seconds: float = Field(default=20, gt=0, le=60)
+    max_output_tokens: int = Field(default=1200, ge=128, le=4000)
+    investigation_timeout_seconds: int = Field(default=120, ge=10, le=900)
+    max_concurrent_jobs: int = Field(default=2, ge=1, le=8)
+    worker_enabled: bool = True
+    lease_seconds: int = Field(default=60, ge=15, le=300)
+    alert_min_severity: Literal["informational", "low", "medium", "high", "critical"] = "medium"
+    alert_min_confidence: Literal["low", "medium", "high"] = "low"
+    max_llm_calls: int = Field(default=9, ge=1, le=30)
+    max_llm_tokens: int = Field(default=30000, ge=1000, le=100000)
+    beacon_min_connections: int = Field(default=6, ge=4, le=100)
+    beacon_max_cv: float = Field(default=0.15, ge=0, le=1)
+    max_pending_jobs: int = Field(default=100, ge=1, le=1000)
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
 

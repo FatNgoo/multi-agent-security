@@ -1,97 +1,142 @@
-# Multi-Agent Security Investigation — v0.2 Upload + Database
+# Nghiên cứu và xây dựng hệ thống AI hỗ trợ phát hiện và điều tra chuỗi hành vi Persistence – Command and Control từ log Sysmon và Zeek
 
-This is an incremental upgrade of v0.1, preserving LangGraph Supervisor → Persistence Agent and Gemini/DeepSeek/offline modes.
+Ứng dụng nghiên cứu chạy local với FastAPI, Streamlit Dark Crimson, PostgreSQL/SQLite và LangGraph. Luồng chính gồm upload, chuẩn hóa, chọn datasets/phạm vi, điều tra, đối chiếu evidence, đánh giá mức nguy hiểm, cảnh báo và đề xuất xử lý.
 
-## Local Windows PowerShell quick start
+## Chạy với Docker Desktop
 
-```powershell
-uv python install 3.12
-uv venv .venv --python 3.12
-.\.venv\Scripts\Activate.ps1
-uv pip install -r requirements.txt
-Copy-Item .env.example .env
-python -m pytest -q
-python -m uvicorn app.api.main:app --reload
-```
-
-Local Python uses SQLite for quick tests (`DATABASE_URL=sqlite:///./local-dev.db`). Docker Compose uses PostgreSQL by overriding that variable inside the container.
-
-## Docker Compose (PostgreSQL + FastAPI)
-
-1. Change `POSTGRES_PASSWORD` in `.env` to your own password (use letters/numbers for this demo).
-2. Stop the local Uvicorn instance with Ctrl+C.
-3. In PowerShell:
+Từ root repository trên Windows PowerShell, tạo `.env` từ mẫu nếu chưa có và cấu hình `POSTGRES_PASSWORD`. Giữ bản `.env` hiện có khi nâng cấp.
 
 ```powershell
+if (-not (Test-Path .env)) { Copy-Item .env.example .env }
+docker compose config --quiet
 docker compose up --build -d
 docker compose ps
-docker compose logs --tail=50 api
 ```
 
-Open http://localhost:8000/docs and follow this order:
+- Frontend tại http://localhost:8501
+- OpenAPI tại http://localhost:8000/docs
+- Health tại http://localhost:8000/health
 
-1. **POST `/api/v1/logs/upload`** → Choose File → `data/fixtures/sysmon.jsonl` → Execute.
-2. Copy the returned `dataset_id`.
-3. **GET `/api/v1/datasets`** → verify the upload.
-4. **GET `/api/v1/events`** → dataset_id + host `WIN-LAB-01` + start `2026-10-14T08:00:00Z` + end `2026-10-14T09:00:00Z`.
-5. **POST `/api/v1/investigate`** with:
+API tự chạy migration additive khi khởi động. Dữ liệu PostgreSQL được lưu trong named volume `pgdata`. Sao lưu database trước khi nâng cấp instance có dữ liệu quan trọng. Lệnh `docker compose down -v` sẽ xóa volume.
 
-```json
-{
-  "dataset_id": "PASTE_DATASET_UUID_HERE",
-  "host": "WIN-LAB-01",
-  "start_time": "2026-10-14T08:00:00Z",
-  "end_time": "2026-10-14T09:00:00Z"
-}
-```
-
-Initially `AGENT_MODE=offline` gives deterministic, **not AI** results. Change `.env` to `AGENT_MODE=gemini` and set `GEMINI_API_KEY` to use Gemini tool calling. Recreate the API container to pick up changes: `docker compose up -d --force-recreate api`. Do not commit `.env`.
-
-## Current capabilities / limitations
-
-- Accepts **only simplified Sysmon JSONL** records matching fields `timestamp`, `host`, `event_id`, `description`. These are test records, not raw Sysmon XML/Windows Event exports.
-- Uploaded files up to 5 MB, UTF-8, atomic import (any invalid line rejects entire file).
-- Stores dataset and normalized event rows with original JSON in PostgreSQL when running Compose.
-- Searches strictly inside selected `dataset_id`; evidence IDs are database-generated UUIDs.
-- No Zeek, XML/EVTX parsing, bulk workers, migrations, or UI yet. API only.
-- DB schema is created automatically at startup for prototype; use Alembic migrations later.
-- Treat uploaded logs as untrusted; no arbitrary command execution is exposed.
-
-
-## v0.3 Streamlit UI (Windows + Docker Desktop)
-
-1. Copy `.env.example` to `.env`; set `POSTGRES_PASSWORD`. For real Gemini calls set `AGENT_MODE=gemini`, `GEMINI_API_KEY` and `GEMINI_MODEL`. `offline` mode is a deterministic workflow demonstration, not an AI analysis.
-2. In Windows PowerShell run `docker compose up --build -d`.
-3. Open **http://localhost:8501** for the Streamlit UI and **http://localhost:8000/docs** for FastAPI Swagger.
-4. On **Upload & Datasets**, upload `data/fixtures/sysmon.jsonl`. On **AI Investigation**, choose that dataset, enter host `WIN-LAB-01`, set start 2026-10-14 08:00 UTC and end 2026-10-14 09:00 UTC; run investigation. On **Evidence & Results**, inspect the log evidence and tool trace.
-5. Run `docker compose ps` and `docker compose logs --tail=100 frontend api` for diagnostics.
-
-The UI calls the FastAPI backend from inside Docker (`http://api:8000`). No database credentials or Gemini API key are sent to the browser. The UI supports the existing v0.2 APIs and the Sysmon JSONL fixture schema; EVTX/XML and Zeek are not implemented yet.
-
-To run the frontend without Docker, install `uv pip install -r frontend/requirements.txt`, start the backend separately and run `python -m streamlit run frontend/app.py` with `API_BASE_URL=http://localhost:8000` (default).
-
-
-## v0.4: Native Sysmon Windows Event XML support
-
-This upgrade adds Python `defusedxml` parsing + normalization for **Sysmon Windows Event XML** exports (`<Event>` or a collection `<Events>...</Events>`). It preserves v0.3's JSONL ingest, PostgreSQL models, Evidence IDs, API routes, Gemini/DeepSeek/offline modes, LangGraph and Streamlit UI. `.evtx` binary and Zeek logs remain unsupported.
-
-### Upgrade an existing v0.3 instance without losing datasets
-
-1. Back up your project and `.env`. Unzip v0.4 into a **new project directory**, then copy your existing `.env` to it. You may instead copy modified code files into your existing repository.
-2. In Windows PowerShell at the project root, run `docker compose up --build -d` (reuses the existing named PostgreSQL volume if Compose project name stays `multi-agent-security`). **Do not run `docker compose down -v`**; it deletes database volumes.
-3. Open `http://localhost:8501` → **Upload & Datasets** → upload `data/fixtures/sysmon-event-viewer.xml` or Windows Sysmon XML export. The UI sends it to `/api/v1/logs/upload` and receives `dataset_id` and imported count.
-4. Select the uploaded dataset and `WIN-LAB-01`, UTC start `2026-10-14T08:00:00Z` and end `2026-10-14T09:00:00Z` → Run Investigation → Evidence & Results.
-5. For tests: `uv pip install -r requirements.txt`; `python -m pytest -q tests/test_sysmon_xml.py tests/test_xml_upload_api.py`.
-
-### Notes on exported XML
-
-- Supported XML: Windows Event XML schema with `System/Provider Name=Microsoft-Windows-Sysmon`, `EventID`, `TimeCreated SystemTime`, `Computer`, plus `EventData/Data Name` attributes. Exported XML must be **well-formed**; some Event Viewer copy/paste workflows put several `<Event>` elements next to each other without a root. Wrap these in `<Events>...</Events>` or export a single event. In Windows, use PowerShell to create a collection:
+Để kiểm tra bằng stack tách biệt với database đang sử dụng, dùng project name riêng. Các cổng mặc định cần đang trống.
 
 ```powershell
-$events = Get-WinEvent -LogName 'Microsoft-Windows-Sysmon/Operational' -MaxEvents 100
-$xml = '<Events>' + (($events | ForEach-Object { $_.ToXml() }) -join '') + '</Events>'
-[System.IO.File]::WriteAllText("$PWD\sysmon-export.xml", $xml, [System.Text.UTF8Encoding]::new($false))
+docker compose -p multi-agent-security-verify up --build -d
 ```
 
-- Keep the originals as evidence. Parsed data is stored in `events.raw` as structured original fields, **not byte-for-byte original XML**. XML entity expansion/DTD is rejected by `defusedxml`. Only upload trusted authorized lab data; the prototype uses a 5 MB upload limit.
-- An Event ID is not itself a maliciousness verdict; the Agent must evaluate context and evidence.
+## Chạy Python local
+
+```powershell
+uv venv .venv --python 3.12
+uv pip install -r requirements.txt
+uv pip install -r frontend/requirements.txt
+$env:DATABASE_URL = 'sqlite:///./local-dev.db'
+$env:AGENT_MODE = 'offline'
+.\.venv\Scripts\python.exe -m uvicorn app.api.main:app --host 127.0.0.1 --port 8000
+```
+
+Mở PowerShell thứ hai tại root repository để chạy frontend với theme đúng đường dẫn.
+
+```powershell
+$env:API_BASE_URL = 'http://127.0.0.1:8000'
+Set-Location frontend
+..\.venv\Scripts\python.exe -m streamlit run app.py --server.address 127.0.0.1 --server.port 8501
+```
+
+SQLite phục vụ phát triển và tests. Compose cấu hình PostgreSQL cho stack container.
+
+## Demo tổng hợp
+
+Sau khi API đang chạy, dùng các lệnh sau để tạo fixtures và chạy một investigation offline qua background queue. Dữ liệu được tạo là mô phỏng có nhãn, sử dụng các dải IP dành cho tài liệu.
+
+```powershell
+.\.venv\Scripts\python.exe -m scripts.generate_demo
+.\.venv\Scripts\python.exe -m scripts.seed_demo
+```
+
+Mở **Lịch sử & báo cáo**, chọn investigation vừa tạo rồi mở kết quả. Case có Run Key, Sysmon network events và Zeek connections định kỳ. Kết quả kỳ vọng có finding Persistence, periodic connections, supported correlations, mức triage High và alert có timing. Dữ liệu này dùng để kiểm tra logic và trình diễn.
+
+Để upload thủ công, dùng màn hình **Datasets** và chọn đúng source cho từng file.
+
+| File | Source |
+|---|---|
+| `data/fixtures/synthetic-sysmon.jsonl` | `sysmon` |
+| `data/fixtures/synthetic-zeek_conn.jsonl` hoặc `synthetic-conn.tsv` | `zeek_conn` |
+| `data/fixtures/synthetic-zeek_dns.jsonl` | `zeek_dns` |
+| `data/fixtures/synthetic-zeek_http.jsonl` | `zeek_http` |
+
+Khoảng thời gian demo là `2026-10-14T08:00:00Z` đến `2026-10-14T09:00:00Z`. Khi chọn host `WIN-LAB-01`, thêm mapping sau trong form investigation.
+
+```json
+[
+  {
+    "host": "WIN-LAB-01",
+    "ip": "192.0.2.10",
+    "start_time": "2026-10-14T08:00:00Z",
+    "end_time": "2026-10-14T09:00:00Z"
+  }
+]
+```
+
+## Chức năng hiện có
+
+- Sysmon Windows Event XML và JSONL schema đơn giản với `timestamp`, `host`, `event_id`, `description` cùng các trường bổ sung.
+- Zeek `conn`, `dns`, `http` JSON Lines và TSV có `#fields`/`#types`, upload atomic tối đa 5 MB.
+- Evidence UUID, raw fields/dòng JSONL hoặc TSV, SHA-256 file, record position, provenance và UTC.
+- Query đa dataset, host/IP/time scope, pagination và coverage/truncation metadata.
+- Shared tools cho events, process lineage, beacon statistics và ATT&CK retrieval.
+- Source-aware Supervisor, Persistence/C2/Correlation stages, bounded provider tool calling và evidence verification.
+- Severity/confidence riêng biệt, reason/limitations, conditional response playbook và analyst review audit.
+- Alert thresholds, detection-to-alert-creation latency, acknowledgment và dashboard p50/p95.
+- Database-backed jobs, cancellation, worker leases và xử lý job bị gián đoạn.
+- UI Dark Crimson, timeline, evidence viewer, relationships, provider traces, JSON/Markdown reports và lịch sử.
+- Evaluation runner với heuristic/Single-Agent/Multi-Agent trên cùng dữ liệu mô phỏng.
+
+## Provider và budget
+
+Màn hình investigation cho phép chọn `offline`, `gemini` hoặc `deepseek`. Key được cấu hình ở backend qua `.env`. `AGENT_MODE` là mặc định cho API caller không truyền mode. `strategy=heuristic` luôn dùng pipeline offline.
+
+Các cấu hình chính gồm `MAX_RECORDS`, `MAX_TOOL_CALLS`, `MAX_AGENT_ITERATIONS`, `LLM_TIMEOUT_SECONDS`, `MAX_LLM_CALLS`, `MAX_LLM_TOKENS`, `MAX_OUTPUT_TOKENS`, `INVESTIGATION_TIMEOUT_SECONDS`, `MAX_CONCURRENT_JOBS`, `ALERT_MIN_SEVERITY`, `ALERT_MIN_CONFIDENCE`, `BEACON_MIN_CONNECTIONS` và `BEACON_MAX_CV`.
+
+Provider lỗi hoặc output sai evidence refs được ghi trạng thái trong `assessments`. Kết quả deterministic vẫn đi kèm cảnh báo về phần AI còn thiếu. Token budget dừng lượt gọi tiếp theo dựa trên usage provider báo về. Raw logs là dữ liệu untrusted. Chỉ gửi dữ liệu được phép tới provider.
+
+## API
+
+| Endpoint | Chức năng |
+|---|---|
+| `POST /api/v1/logs/upload` | Multipart `file` và `source_type` |
+| `GET /api/v1/datasets` | Pagination `limit`, `offset`, header `X-Total-Count` |
+| `GET /api/v1/events` | Dataset, host/IP, time, pagination và `X-Has-More` |
+| `GET /api/v1/evidence/{id}` | Raw và normalized evidence |
+| `POST /api/v1/investigations` | Tạo background job, HTTP 202 |
+| `GET /api/v1/investigations` | Lịch sử |
+| `GET /api/v1/investigations/{id}` | Trạng thái, tiến độ và kết quả |
+| `POST /api/v1/investigations/{id}/cancel` | Yêu cầu hủy |
+| `GET /api/v1/investigations/{id}/report` | JSON hoặc `format=markdown` |
+| `PATCH /api/v1/investigations/{id}/findings/{finding_id}` | Analyst severity/recommendation review |
+| `GET /api/v1/investigations/{id}/audit` | Lịch sử review |
+| `GET/PATCH /api/v1/alerts[/{id}]` | Danh sách và cập nhật cảnh báo |
+| `GET /api/v1/metrics` | Dashboard và phân phối latency |
+| `GET /api/v1/knowledge` | ATT&CK lookup |
+| `POST /api/v1/investigate` | Luồng synchronous tương thích caller v0.4 |
+
+Request investigation nhận `dataset_ids` hoặc `dataset_id` cũ, `start_time`, `end_time`, tùy chọn `host`, `ip`, `host_mappings`, `benign_destinations`, `asset_criticality`, `strategy` và `mode`. Timestamp cần có timezone. Khi chọn datasets/time mà để trống host/IP, phạm vi gồm mọi host trong datasets đã chọn.
+
+## Kiểm thử và evaluation
+
+```powershell
+.\.venv\Scripts\python.exe -m pytest -q
+.\.venv\Scripts\python.exe -m evaluation.run --runs 3 --output artifacts/evaluation-offline.json
+.\.venv\Scripts\python.exe -m scripts.check_ui
+```
+
+Tests dùng database tạm riêng. `scripts.check_ui` cần API đang chạy cùng artifact từ `scripts.seed_demo`. Evaluation lưu nguồn dữ liệu, nhãn, per-run metrics và limitations. Xem `docs/EVALUATION.md` để chạy provider experiments và diễn giải kết quả.
+
+## Giới hạn cần xét khi sử dụng
+
+Rubric severity và detectors hiện là research heuristics có phiên bản. Critical severity cần analyst đánh giá tác động. Corpus ATT&CK là tập curated gồm năm techniques. Correlation dùng giới hạn clock skew hai giây, weak temporal window năm phút và cần review trong môi trường NAT/DHCP. Coverage có thể bị giới hạn theo budget.
+
+Detection-to-alert latency kết thúc khi server tạo alert, trước transaction commit và UI polling. Provider narrative vẫn cần kiểm tra nội dung bằng chứng. Độ chính xác và false positives trên log thực tế cần ground truth và đánh giá bổ sung. Ứng dụng hiện hướng đến analyst local, bind loopback và dùng chung local analyst identity.
+
+Xem `docs/ARCHITECTURE.md` cho schema, worker lifecycle, correlation và nguồn kiến thức. Hướng dẫn thiết kế giao diện nằm trong `DESIGN-red-team.md`.

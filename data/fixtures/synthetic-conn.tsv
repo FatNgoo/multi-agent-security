@@ -1,0 +1,15 @@
+#separator \x09
+#set_separator	,
+#empty_field	(empty)
+#unset_field	-
+#path	conn
+#fields	ts	uid	id.orig_h	id.orig_p	id.resp_h	id.resp_p	proto	service	duration	orig_bytes	resp_bytes
+#types	time	string	addr	port	addr	port	enum	string	interval	count	count
+1791964860.0	SYNTHETIC0	192.0.2.10	51000	198.51.100.20	443	tcp	ssl	0.2	100	180
+1791964920.0	SYNTHETIC1	192.0.2.10	51001	198.51.100.20	443	tcp	ssl	0.2	100	180
+1791964980.0	SYNTHETIC2	192.0.2.10	51002	198.51.100.20	443	tcp	ssl	0.2	100	180
+1791965040.0	SYNTHETIC3	192.0.2.10	51003	198.51.100.20	443	tcp	ssl	0.2	100	180
+1791965100.0	SYNTHETIC4	192.0.2.10	51004	198.51.100.20	443	tcp	ssl	0.2	100	180
+1791965160.0	SYNTHETIC5	192.0.2.10	51005	198.51.100.20	443	tcp	ssl	0.2	100	180
+1791965220.0	SYNTHETIC6	192.0.2.10	51006	198.51.100.20	443	tcp	ssl	0.2	100	180
+1791965280.0	SYNTHETIC7	192.0.2.10	51007	198.51.100.20	443	tcp	ssl	0.2	100	180

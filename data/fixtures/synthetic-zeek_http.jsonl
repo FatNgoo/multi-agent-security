@@ -1,0 +1,1 @@
+{"ts": 1791964860.0, "uid": "SYNTHETIC0", "id.orig_h": "192.0.2.10", "id.orig_p": 51000, "id.resp_h": "198.51.100.20", "id.resp_p": 443, "host": "lab-demo.example", "method": "GET", "uri": "/simulated-health", "status_code": 200, "user_agent": "SYNTHETIC lab"}
