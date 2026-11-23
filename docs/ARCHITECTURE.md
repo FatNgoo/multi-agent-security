@@ -2,9 +2,17 @@
 
 ## Data flow
 
+Runtime data is isolated by Compose project: product uses
+`multi-agent-security-product` (8000/8501), verification uses
+`multi-agent-security-verification` (18000/18501). Each has its own PostgreSQL volume.
+No input logs are seeded during application startup. Input samples, collected logs and
+legacy archives live outside the product in `verification/logs/`. Automated mutation
+scripts require the verification environment marker from health. See
+[manual product testing](MANUAL_PRODUCT_TEST.md).
+
 ```mermaid
 flowchart TD
-  UI[Streamlit Dark Crimson] --> API[FastAPI]
+  UI[Streamlit light workspace] --> API[FastAPI]
   API --> PARSE[Sysmon and Zeek parsers]
   PARSE --> DB[(PostgreSQL or local SQLite)]
   API --> JOB[Persisted investigation queue]
@@ -17,14 +25,17 @@ flowchart TD
   PA --> CO[Correlation specialist]
   CA --> CO
   CO --> VERIFY[Evidence verification and triage rubric]
-  VERIFY --> OUT[Findings, relationships, response playbook, alerts]
+  VERIFY --> RESPONSE[Response advisor: one grounded plan or explicit local fallback]
+  RESPONSE --> OUT[Findings, relationships, response plan, alerts]
   OUT --> DB
   DB --> UI
 ```
 
 The source-aware Supervisor selects Persistence, C2 and Correlation stages from the records available inside the requested scope. Each specialist can access every selected source through shared tools. The graph ends at verification and report generation. Provider specialists have bounded tool-calling loops. Correlation receives earlier findings, relationships and specialist assessments.
 
-Agent implementations live in `app/agents/supervisor_agent.py`, `persistence_agent.py`, `c2_agent.py` and `correlation_agent.py`. `app/agents/specialists.py` provides their shared provider/tool-calling runtime. Shared graph state lives in `app/schemas/investigation_state.py`. `app/workflows/investigation_graph.py` imports these agents, connects their nodes and applies verification/report stages. Deterministic detectors and statistics live in `app/analysis/` and `app/tools/`.
+Agent implementations live in `product/app/agents/supervisor_agent.py`, `persistence_agent.py`, `c2_agent.py` and `correlation_agent.py`. `product/app/agents/specialists.py` provides their shared provider/tool-calling runtime. Shared graph state lives in `product/app/schemas/investigation_state.py`. `product/app/services/workflow.py` imports these agents, connects their nodes and applies verification/report stages. Shared queries, statistics, detectors, correlation helpers and ATT&CK lookup live in `product/app/tools/`. Severity and response playbooks live in `product/app/services/`.
+
+The backend has six packages: `agents`, `ingestion`, `db`, `schemas`, `tools` and `services`. `product/app/main.py` is the FastAPI entrypoint, `product/app/config.py` holds settings, and `product/app/common.py` contains UTC/logging helpers. Offline evaluation and its synthetic scenarios are under `verification/scripts/`. Generated outputs and local demo databases are under `verification/artifacts/`.
 
 Offline mode runs Python detectors and statistics. Gemini and DeepSeek use the OpenAI-compatible SDK to select tools and produce structured Vietnamese hypotheses with evidence references. Invalid references discard the provider assessment. The deterministic findings, correlations and severity remain available when a provider fails. Provider narrative semantics require analyst review.
 

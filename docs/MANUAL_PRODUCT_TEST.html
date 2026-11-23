@@ -1,0 +1,630 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>MANUAL_PRODUCT_TEST.md</title>
+<meta http-equiv="Content-type" content="text/html;charset=UTF-8">
+
+<style>
+/* https://github.com/microsoft/vscode/blob/master/extensions/markdown-language-features/media/markdown.css */
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+body {
+	font-family: var(--vscode-markdown-font-family, -apple-system, BlinkMacSystemFont, "Segoe WPC", "Segoe UI", "Ubuntu", "Droid Sans", sans-serif);
+	font-size: var(--vscode-markdown-font-size, 14px);
+	padding: 0 26px;
+	line-height: var(--vscode-markdown-line-height, 22px);
+	word-wrap: break-word;
+}
+
+#code-csp-warning {
+	position: fixed;
+	top: 0;
+	right: 0;
+	color: white;
+	margin: 16px;
+	text-align: center;
+	font-size: 12px;
+	font-family: sans-serif;
+	background-color:#444444;
+	cursor: pointer;
+	padding: 6px;
+	box-shadow: 1px 1px 1px rgba(0,0,0,.25);
+}
+
+#code-csp-warning:hover {
+	text-decoration: none;
+	background-color:#007acc;
+	box-shadow: 2px 2px 2px rgba(0,0,0,.25);
+}
+
+body.scrollBeyondLastLine {
+	margin-bottom: calc(100vh - 22px);
+}
+
+body.showEditorSelection .code-line {
+	position: relative;
+}
+
+body.showEditorSelection .code-active-line:before,
+body.showEditorSelection .code-line:hover:before {
+	content: "";
+	display: block;
+	position: absolute;
+	top: 0;
+	left: -12px;
+	height: 100%;
+}
+
+body.showEditorSelection li.code-active-line:before,
+body.showEditorSelection li.code-line:hover:before {
+	left: -30px;
+}
+
+.vscode-light.showEditorSelection .code-active-line:before {
+	border-left: 3px solid rgba(0, 0, 0, 0.15);
+}
+
+.vscode-light.showEditorSelection .code-line:hover:before {
+	border-left: 3px solid rgba(0, 0, 0, 0.40);
+}
+
+.vscode-light.showEditorSelection .code-line .code-line:hover:before {
+	border-left: none;
+}
+
+.vscode-dark.showEditorSelection .code-active-line:before {
+	border-left: 3px solid rgba(255, 255, 255, 0.4);
+}
+
+.vscode-dark.showEditorSelection .code-line:hover:before {
+	border-left: 3px solid rgba(255, 255, 255, 0.60);
+}
+
+.vscode-dark.showEditorSelection .code-line .code-line:hover:before {
+	border-left: none;
+}
+
+.vscode-high-contrast.showEditorSelection .code-active-line:before {
+	border-left: 3px solid rgba(255, 160, 0, 0.7);
+}
+
+.vscode-high-contrast.showEditorSelection .code-line:hover:before {
+	border-left: 3px solid rgba(255, 160, 0, 1);
+}
+
+.vscode-high-contrast.showEditorSelection .code-line .code-line:hover:before {
+	border-left: none;
+}
+
+img {
+	max-width: 100%;
+	max-height: 100%;
+}
+
+a {
+	text-decoration: none;
+}
+
+a:hover {
+	text-decoration: underline;
+}
+
+a:focus,
+input:focus,
+select:focus,
+textarea:focus {
+	outline: 1px solid -webkit-focus-ring-color;
+	outline-offset: -1px;
+}
+
+hr {
+	border: 0;
+	height: 2px;
+	border-bottom: 2px solid;
+}
+
+h1 {
+	padding-bottom: 0.3em;
+	line-height: 1.2;
+	border-bottom-width: 1px;
+	border-bottom-style: solid;
+}
+
+h1, h2, h3 {
+	font-weight: normal;
+}
+
+table {
+	border-collapse: collapse;
+}
+
+table > thead > tr > th {
+	text-align: left;
+	border-bottom: 1px solid;
+}
+
+table > thead > tr > th,
+table > thead > tr > td,
+table > tbody > tr > th,
+table > tbody > tr > td {
+	padding: 5px 10px;
+}
+
+table > tbody > tr + tr > td {
+	border-top: 1px solid;
+}
+
+blockquote {
+	margin: 0 7px 0 5px;
+	padding: 0 16px 0 10px;
+	border-left-width: 5px;
+	border-left-style: solid;
+}
+
+code {
+	font-family: Menlo, Monaco, Consolas, "Droid Sans Mono", "Courier New", monospace, "Droid Sans Fallback";
+	font-size: 1em;
+	line-height: 1.357em;
+}
+
+body.wordWrap pre {
+	white-space: pre-wrap;
+}
+
+pre:not(.hljs),
+pre.hljs code > div {
+	padding: 16px;
+	border-radius: 3px;
+	overflow: auto;
+}
+
+pre code {
+	color: var(--vscode-editor-foreground);
+	tab-size: 4;
+}
+
+/** Theming */
+
+.vscode-light pre {
+	background-color: rgba(220, 220, 220, 0.4);
+}
+
+.vscode-dark pre {
+	background-color: rgba(10, 10, 10, 0.4);
+}
+
+.vscode-high-contrast pre {
+	background-color: rgb(0, 0, 0);
+}
+
+.vscode-high-contrast h1 {
+	border-color: rgb(0, 0, 0);
+}
+
+.vscode-light table > thead > tr > th {
+	border-color: rgba(0, 0, 0, 0.69);
+}
+
+.vscode-dark table > thead > tr > th {
+	border-color: rgba(255, 255, 255, 0.69);
+}
+
+.vscode-light h1,
+.vscode-light hr,
+.vscode-light table > tbody > tr + tr > td {
+	border-color: rgba(0, 0, 0, 0.18);
+}
+
+.vscode-dark h1,
+.vscode-dark hr,
+.vscode-dark table > tbody > tr + tr > td {
+	border-color: rgba(255, 255, 255, 0.18);
+}
+
+</style>
+
+<style>
+/* Tomorrow Theme */
+/* http://jmblog.github.com/color-themes-for-google-code-highlightjs */
+/* Original theme - https://github.com/chriskempson/tomorrow-theme */
+
+/* Tomorrow Comment */
+.hljs-comment,
+.hljs-quote {
+	color: #8e908c;
+}
+
+/* Tomorrow Red */
+.hljs-variable,
+.hljs-template-variable,
+.hljs-tag,
+.hljs-name,
+.hljs-selector-id,
+.hljs-selector-class,
+.hljs-regexp,
+.hljs-deletion {
+	color: #c82829;
+}
+
+/* Tomorrow Orange */
+.hljs-number,
+.hljs-built_in,
+.hljs-builtin-name,
+.hljs-literal,
+.hljs-type,
+.hljs-params,
+.hljs-meta,
+.hljs-link {
+	color: #f5871f;
+}
+
+/* Tomorrow Yellow */
+.hljs-attribute {
+	color: #eab700;
+}
+
+/* Tomorrow Green */
+.hljs-string,
+.hljs-symbol,
+.hljs-bullet,
+.hljs-addition {
+	color: #718c00;
+}
+
+/* Tomorrow Blue */
+.hljs-title,
+.hljs-section {
+	color: #4271ae;
+}
+
+/* Tomorrow Purple */
+.hljs-keyword,
+.hljs-selector-tag {
+	color: #8959a8;
+}
+
+.hljs {
+	display: block;
+	overflow-x: auto;
+	color: #4d4d4c;
+	padding: 0.5em;
+}
+
+.hljs-emphasis {
+	font-style: italic;
+}
+
+.hljs-strong {
+	font-weight: bold;
+}
+</style>
+
+<style>
+/*
+ * Markdown PDF CSS
+ */
+
+ body {
+	font-family: -apple-system, BlinkMacSystemFont, "Segoe WPC", "Segoe UI", "Ubuntu", "Droid Sans", sans-serif, "Meiryo";
+	padding: 0 12px;
+}
+
+pre {
+	background-color: #f8f8f8;
+	border: 1px solid #cccccc;
+	border-radius: 3px;
+	overflow-x: auto;
+	white-space: pre-wrap;
+	overflow-wrap: break-word;
+}
+
+pre:not(.hljs) {
+	padding: 23px;
+	line-height: 19px;
+}
+
+blockquote {
+	background: rgba(127, 127, 127, 0.1);
+	border-color: rgba(0, 122, 204, 0.5);
+}
+
+.emoji {
+	height: 1.4em;
+}
+
+code {
+	font-size: 14px;
+	line-height: 19px;
+}
+
+/* for inline code */
+:not(pre):not(.hljs) > code {
+	color: #C9AE75; /* Change the old color so it seems less like an error */
+	font-size: inherit;
+}
+
+/* Page Break : use <div class="page"/> or <div class="page"></div> to insert page break
+-------------------------------------------------------- */
+.page {
+	page-break-after: always;
+}
+
+</style>
+
+<script src="https://unpkg.com/mermaid/dist/mermaid.min.js"></script>
+</head>
+<body>
+  <script>
+    mermaid.initialize({
+      startOnLoad: true,
+      theme: document.body.classList.contains('vscode-dark') || document.body.classList.contains('vscode-high-contrast')
+          ? 'dark'
+          : 'default'
+    });
+  </script>
+<h1 id="tự-chạy-và-kiểm-thử-sản-phẩm-từ-trạng-thái-sạch">Tự chạy và kiểm thử sản phẩm từ trạng thái sạch</h1>
+<h2 id="1-vì-sao-build-xong-lại-thấy-log">1. Vì sao build xong lại thấy log?</h2>
+<p>Build tạo image chứa mã ứng dụng; nó không xóa database. Trước đây các script demo và
+kiểm tra giao diện đã nạp log mẫu qua API đang phục vụ sản phẩm. PostgreSQL lưu dữ liệu
+trong volume nên khi bạn build lại, giao diện tiếp tục đọc các dataset, kết quả và cảnh
+báo đó. Backend không tự tạo dataset khi khởi động.</p>
+<p>Ngày 21/11/2026, dữ liệu cũ gồm 10 dataset, 46 event, 12 investigation và 10 cảnh báo đã
+được lưu riêng. Sản phẩm hiện chuyển sang project/volume mới để bạn bắt đầu trống.
+Không xóa hoặc nạp lại dữ liệu vào sản phẩm để kiểm chứng tự động sau bước tách này.</p>
+<h2 id="2-ba-môi-trường-dữ-liệu-tách-biệt">2. Ba môi trường dữ liệu tách biệt</h2>
+<table>
+<thead>
+<tr>
+<th>Môi trường</th>
+<th>Compose project</th>
+<th>API</th>
+<th>Giao diện</th>
+<th>Volume PostgreSQL</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Sản phẩm bạn tự thao tác</td>
+<td><code>multi-agent-security-product</code></td>
+<td><code>http://localhost:8000</code></td>
+<td><code>http://localhost:8501</code></td>
+<td><code>multi-agent-security-product_pgdata</code></td>
+</tr>
+<tr>
+<td>Demo/kiểm thử tự động</td>
+<td><code>multi-agent-security-verification</code></td>
+<td><code>http://localhost:18000</code></td>
+<td><code>http://localhost:18501</code></td>
+<td><code>multi-agent-security-verification_pgdata</code></td>
+</tr>
+<tr>
+<td>Bản cũ lưu lại, đang dừng</td>
+<td><code>multi-agent-security</code></td>
+<td>Không phục vụ</td>
+<td>Không phục vụ</td>
+<td><code>multi-agent-security_pgdata</code></td>
+</tr>
+</tbody>
+</table>
+<p>API, frontend và database mới ở môi trường sản phẩm dùng cùng volume qua các lần build.
+Sau khi bạn tự upload, lần build tiếp theo vẫn có dữ liệu đó; đây là việc lưu bền vững
+bình thường. Nếu thật sự muốn một bộ dữ liệu trắng khác, tạo project name mới theo mục 9.</p>
+<p>Không chạy lại project cũ ở cổng 8000/8501 cùng sản phẩm mới vì sẽ trùng cổng.</p>
+<h2 id="3-các-file-log-nằm-ở-đâu">3. Các file log nằm ở đâu?</h2>
+<pre class="hljs"><code><div>product/                          # Code và cấu hình sản phẩm, không chứa log mẫu
+verification/
+  logs/
+    samples/                      # Tệp mẫu, chỉ upload nếu bạn chủ động chọn
+    captures/&lt;case-id&gt;/            # Log tự thu, metadata và report của ca
+    archive/legacy-20261121T142944Z/
+      database.dump               # Backup database đầy đủ
+      dump-contents.txt            # Danh mục đọc được từ backup
+      datasets.json               # Danh sách dataset cũ
+      &lt;UUID&gt;.stored-events.jsonl   # Bản xuất event đã lưu trong DB
+      archive-info.json           # Thống kê và thông tin lưu trữ
+      sha256.json                 # Hash các file backup/xuất
+  artifacts/                      # Kết quả test, evaluation và backup phát triển cũ
+</div></code></pre>
+<p>Các record xuất từ DB không thay cho EVTX/PCAP hay file log gốc nguyên byte. Với lần thu
+mới, lưu file gốc vào <code>captures/</code> <strong>trước khi upload</strong>, kèm SHA-256 để kiểm chứng lại.
+Khóa API chỉ nằm trong <code>product/.env</code>, không copy vào thư mục log hoặc gói bằng chứng.</p>
+<h2 id="4-khởi-chạy-sản-phẩm">4. Khởi chạy sản phẩm</h2>
+<p>Mở Docker Desktop, đợi engine sẵn sàng. Từ root repository trên PowerShell:</p>
+<pre class="hljs"><code><div><span class="hljs-built_in">Set-Location</span> F:\TLCN_ATTT\Projects\multi<span class="hljs-literal">-agent-security</span>\product
+docker compose config <span class="hljs-literal">--quiet</span>
+docker compose up <span class="hljs-literal">--build</span> <span class="hljs-literal">-d</span>
+docker compose <span class="hljs-built_in">ps</span>
+<span class="hljs-built_in">Invoke-RestMethod</span> http://<span class="hljs-number">127.0</span>.<span class="hljs-number">0.1</span>:<span class="hljs-number">8000</span>/health
+</div></code></pre>
+<p>Nếu là một bản clone mới và chưa có <code>.env</code>, dùng <code>Copy-Item .env.example .env</code>, đặt
+<code>POSTGRES_PASSWORD</code> trước khi chạy. Giữ nguyên <code>.env</code> đã có; không chép mẫu đè API key.</p>
+<p>Health phải có <code>status: healthy</code>, <code>environment: product</code>. Mở <code>http://localhost:8501</code>,
+nhấn Ctrl+F5 để bỏ phiên giao diện cũ. Với database mới, Tổng quan phải có 0 tệp log,
+0 cảnh báo và chưa có lịch sử phân tích.</p>
+<p>Bạn có thể đọc trạng thái mà không ghi dữ liệu:</p>
+<pre class="hljs"><code><div><span class="hljs-built_in">Invoke-RestMethod</span> http://<span class="hljs-number">127.0</span>.<span class="hljs-number">0.1</span>:<span class="hljs-number">8000</span>/api/v1/datasets
+<span class="hljs-built_in">Invoke-RestMethod</span> http://<span class="hljs-number">127.0</span>.<span class="hljs-number">0.1</span>:<span class="hljs-number">8000</span>/api/v1/investigations
+<span class="hljs-built_in">Invoke-RestMethod</span> http://<span class="hljs-number">127.0</span>.<span class="hljs-number">0.1</span>:<span class="hljs-number">8000</span>/api/v1/metrics
+</div></code></pre>
+<p>Không chạy <code>seed_demo</code>, <code>check_stack</code>, <code>check_ui</code> để thử sự trống của sản phẩm. Các lệnh
+đó phục vụ môi trường verification, có thể tạo/cập nhật dữ liệu trong môi trường đó.
+Chúng đã được đổi mặc định sang cổng 18000 và từ chối API không mang nhãn verification.</p>
+<h2 id="5-lần-thử-đầu-tự-upload-một-file">5. Lần thử đầu: tự upload một file</h2>
+<p>Bạn có hai lựa chọn; thao tác upload hoàn toàn do bạn thực hiện:</p>
+<ul>
+<li>Log thật: làm theo <a href="REAL_MACHINE_LAB.md">lab Windows–Linux chi tiết</a>, copy bằng chứng
+về <code>verification/logs/captures/&lt;case-id&gt;/</code> và kiểm tra thời gian/host từ chính log.</li>
+<li>Tệp mẫu để làm quen giao diện: mở <code>verification/logs/samples/</code>. Những file này luôn
+nằm riêng trên ổ đĩa và không xuất hiện trong sản phẩm cho tới khi bạn upload.</li>
+</ul>
+<p>Trong giao diện sản phẩm, vào <strong>Dữ liệu log</strong> → chọn loại log → chọn file → bấm
+<strong>Nhập &amp; kiểm tra dữ liệu</strong>. Đối chiếu bảng sau:</p>
+<table>
+<thead>
+<tr>
+<th>File</th>
+<th>Loại log cần chọn</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Sysmon Event Viewer <code>*.xml</code> hoặc JSONL schema ứng dụng</td>
+<td>Sysmon</td>
+</tr>
+<tr>
+<td>Zeek <code>conn.log</code>/JSONL/TSV</td>
+<td>Zeek · Kết nối</td>
+</tr>
+<tr>
+<td>Zeek <code>dns.log</code>/JSONL/TSV</td>
+<td>Zeek · DNS</td>
+</tr>
+<tr>
+<td>Zeek <code>http.log</code>/JSONL/TSV</td>
+<td>Zeek · HTTP</td>
+</tr>
+</tbody>
+</table>
+<p>Không upload <code>.evtx</code>, <code>.pcap</code>, <code>database.dump</code>, report hay <code>*.stored-events.jsonl</code> như
+log đầu vào. Giữ các file này để lưu trữ/đối chiếu. Giới hạn mặc định mỗi file là
+5.000.000 byte. Sysmon XML cần một <code>&lt;Event&gt;</code> hoặc <code>&lt;Events&gt;</code> hợp lệ; Zeek JSON cần
+mỗi dòng một object, không phải mảng JSON.</p>
+<p>Ghi lại filename, số record, dataset UUID và SHA-256. Upload lại cùng file sẽ tạo
+dataset khác; chỉ chọn một bản khi phân tích để tránh đếm lặp.</p>
+<p>Sau upload, số tệp log tăng. <strong>Cảnh báo và kết quả chưa tự xuất hiện</strong>: bạn còn phải
+bắt đầu một lượt phân tích. Điều này giúp bạn kiểm soát từng thao tác thử nghiệm.</p>
+<h2 id="6-tự-chạy-phân-tích">6. Tự chạy phân tích</h2>
+<p>Vào <strong>Phân tích</strong> và chọn chính các file vừa nhập. Mặc định form lấy thời gian bao phủ
+các file. Nếu cần giới hạn, mở <strong>Chọn máy &amp; thời gian cụ thể</strong>:</p>
+<ol>
+<li>Host phải đúng tên trong Sysmon, kể cả FQDN nếu có.</li>
+<li>IP phải là IP máy nguồn trong log, không phải IP server nhận heartbeat.</li>
+<li>Thời gian trên form là UTC. Không copy khoảng thời gian demo cho log thu hôm khác.</li>
+<li>Chỉ xác nhận mapping host–IP khi bạn biết chúng thuộc cùng máy trong khoảng đó.</li>
+<li>Chọn Offline lần đầu để kiểm tra luồng mà không gọi API AI.</li>
+<li>Bấm <strong>Bắt đầu điều tra</strong>, đợi hoàn thành và lưu investigation UUID.</li>
+</ol>
+<p>Kết quả gồm bốn tab. Ở <strong>Kết quả</strong>, đọc dấu vết và toàn bộ biện pháp đề xuất; ở
+<strong>Diễn biến</strong>, đối chiếu thời gian/liên kết; ở <strong>Bằng chứng</strong>, xem raw record và nguồn;
+ở <strong>Báo cáo</strong>, tải JSON/Markdown.</p>
+<p>Thông báo Offline có nghĩa là phân tích bằng luật/thống kê, không có LLM; log đầu vào
+vẫn là log bạn tự upload. Không coi chưa có finding là chứng minh máy an toàn: kiểm tra
+scope, nguồn log và cảnh báo thiếu/truncation trước.</p>
+<h3 id="nếu-tự-thử-với-bộ-sample-đi-kèm">Nếu tự thử với bộ sample đi kèm</h3>
+<p>Nhập <code>synthetic-sysmon.jsonl</code> dưới source Sysmon và <code>synthetic-zeek_conn.jsonl</code> dưới
+source Zeek · Kết nối. Chọn đúng hai dataset đó; host <code>WIN-LAB-01</code>, IP <code>192.0.2.10</code>,
+khoảng <code>2026-10-14T08:00:00Z</code> → <code>2026-10-14T09:00:00Z</code>, xác nhận mapping cùng máy.
+Đây là dữ liệu mô phỏng có nhãn. Dùng nó để học thao tác, không báo cáo như log thu từ
+một vụ tấn công thật. Không cần upload sample nếu bạn muốn chỉ dùng log tự thu.</p>
+<h2 id="7-tự-so-sánh-ai">7. Tự so sánh AI</h2>
+<p>Sau khi Offline cho evidence đúng, tạo lượt mới với <strong>cùng dataset và scope</strong>, đổi mode
+sang Gemini hoặc DeepSeek theo API key đã cấu hình. Chiến lược Heuristic luôn Offline;
+giữ Multi-agent nếu muốn AI hỗ trợ các bước chuyên trách và đề xuất xử lý tổng hợp.</p>
+<p>Mode provider có thể gửi dữ liệu log liên quan tới dịch vụ ngoài và phát sinh phí;
+dùng dữ liệu lab được phép gửi. Trong kết quả, kiểm tra nguồn đề xuất là AI hay playbook
+thay thế. Timeout, thiếu key, hết budget hoặc output không hợp lệ phải được ghi nhận
+là giới hạn thử nghiệm, không đánh dấu AI đã thành công.</p>
+<h2 id="8-bộ-kiểm-tra-thủ-công-ngắn">8. Bộ kiểm tra thủ công ngắn</h2>
+<table>
+<thead>
+<tr>
+<th>Lượt</th>
+<th>Bạn tự làm</th>
+<th>Điều cần quan sát</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>A</td>
+<td>Mở sản phẩm trước upload</td>
+<td>Không có dataset/lịch sử/cảnh báo</td>
+</tr>
+<tr>
+<td>B</td>
+<td>Upload một tệp</td>
+<td>Chỉ tăng dữ liệu đã nhập; chưa tự điều tra</td>
+</tr>
+<tr>
+<td>C</td>
+<td>Phân tích Offline</td>
+<td>Hoàn thành, evidence thuộc đúng dataset/scope</td>
+</tr>
+<tr>
+<td>D</td>
+<td>Tự nhập sai source hoặc file không hợp lệ</td>
+<td>Thông báo từ chối, không có dataset nhập dở</td>
+</tr>
+<tr>
+<td>E</td>
+<td>Chọn host/time không khớp</td>
+<td>Kết quả thiếu/không có evidence được giải thích</td>
+</tr>
+<tr>
+<td>F</td>
+<td>Phân tích Gemini/DeepSeek trên dữ liệu được phép</td>
+<td>Trạng thái AI và nguồn đề xuất minh bạch</td>
+</tr>
+<tr>
+<td>G</td>
+<td>Mở lại lịch sử, tải báo cáo</td>
+<td>UUID, scope và dữ liệu nhất quán</td>
+</tr>
+<tr>
+<td>H</td>
+<td>Build lại sau khi tự upload</td>
+<td>Dữ liệu của bạn còn nguyên, không tự sinh thêm log</td>
+</tr>
+</tbody>
+</table>
+<p>Với mỗi lượt, ghi input, giờ UTC, UUID và kết quả vào <code>notes.md</code> trong thư mục ca. Nếu
+không khớp mong đợi, giữ log gốc và report để phân tích thay vì xóa database rồi thử lại.</p>
+<h2 id="9-nếu-muốn-thêm-một-lần-thử-trắng-hoàn-toàn">9. Nếu muốn thêm một lần thử trắng hoàn toàn</h2>
+<p>Không cần xóa dữ liệu đã thử. Từ <code>product/</code>, dừng môi trường hiện tại để nhường cổng,
+rồi chọn tên project mới <strong>chưa từng dùng</strong>:</p>
+<pre class="hljs"><code><div>docker compose stop
+docker compose <span class="hljs-literal">-p</span> multi<span class="hljs-literal">-agent-security-manual-02</span> up <span class="hljs-literal">--build</span> <span class="hljs-literal">-d</span>
+</div></code></pre>
+<p>Project mới có volume riêng. Lần sau quản lý nó phải dùng đúng <code>-p</code> đó:</p>
+<pre class="hljs"><code><div>docker compose <span class="hljs-literal">-p</span> multi<span class="hljs-literal">-agent-security-manual-02</span> <span class="hljs-built_in">ps</span>
+docker compose <span class="hljs-literal">-p</span> multi<span class="hljs-literal">-agent-security-manual-02</span> stop
+docker compose up <span class="hljs-literal">-d</span>
+</div></code></pre>
+<p>Lệnh cuối trở lại project sản phẩm mặc định, với dữ liệu bạn đã lưu ở đó. Không bỏ
+<code>-p</code> giữa chừng khi quản lý một project thử riêng. Không chạy <code>down -v</code> để có trạng thái
+trắng: việc đó xóa volume của project được chọn.</p>
+<h2 id="10-chạy-công-cụ-verification-khi-bạn-chủ-động-muốn">10. Chạy công cụ verification khi bạn chủ động muốn</h2>
+<p>Môi trường này có cổng khác, nên có thể chạy cạnh sản phẩm:</p>
+<pre class="hljs"><code><div><span class="hljs-comment"># Từ root repository</span>
+<span class="hljs-built_in">Set-Location</span> verification
+docker compose <span class="hljs-literal">--env-file</span> ../product/.env up <span class="hljs-literal">--build</span> <span class="hljs-literal">-d</span>
+<span class="hljs-built_in">Invoke-RestMethod</span> http://<span class="hljs-number">127.0</span>.<span class="hljs-number">0.1</span>:<span class="hljs-number">18000</span>/health
+<span class="hljs-comment"># Chỉ chạy các lệnh sau nếu chính bạn muốn nạp demo vào môi trường kiểm thử</span>
+..\.venv\Scripts\python.exe <span class="hljs-literal">-m</span> scripts.seed_demo
+..\.venv\Scripts\python.exe <span class="hljs-literal">-m</span> scripts.check_stack <span class="hljs-literal">--result</span> artifacts/demo<span class="hljs-literal">-result</span>.json
+..\.venv\Scripts\python.exe <span class="hljs-literal">-m</span> scripts.check_ui
+</div></code></pre>
+<p>Health phải trả <code>environment: verification</code>; giao diện test ở <code>http://localhost:18501</code>.
+Không đổi <code>--api-url</code> về cổng 8000: guard sẽ từ chối. Không copy volume verification
+sang sản phẩm, vì làm vậy sẽ mang dữ liệu demo theo.</p>
+<h2 id="11-lưu-trữ-và-mở-lại-dữ-liệu-trước-khi-tách">11. Lưu trữ và mở lại dữ liệu trước khi tách</h2>
+<p>Archive nằm tại <code>verification/logs/archive/legacy-20261121T142944Z/</code>. File dump đã được
+đọc danh mục bằng <code>pg_restore --list</code>; số record xuất từng dataset được đối chiếu với
+database. Giữ volume cũ <code>multi-agent-security_pgdata</code>; các container cũ đã được dừng.</p>
+<p>Để xem dữ liệu cũ mà không đụng database sản phẩm mới, dừng project sản phẩm để nhường
+cổng, rồi mở project cũ bằng tên rõ ràng:</p>
+<pre class="hljs"><code><div><span class="hljs-comment"># Đang ở product/</span>
+docker compose stop
+docker compose <span class="hljs-literal">-p</span> multi<span class="hljs-literal">-agent-security</span> <span class="hljs-built_in">start</span>
+</div></code></pre>
+<p>Sau khi xem xong:</p>
+<pre class="hljs"><code><div>docker compose <span class="hljs-literal">-p</span> multi<span class="hljs-literal">-agent-security</span> stop
+docker compose up <span class="hljs-literal">-d</span>
+</div></code></pre>
+<p>Không dùng <code>up --build</code> để mở bản cũ theo hướng dẫn này; <code>start</code> dùng lại đúng container
+đã dừng và volume cũ. Archive là bản sao bổ sung, không phải dữ liệu mặc định của sản phẩm.</p>
+
+</body>
+</html>

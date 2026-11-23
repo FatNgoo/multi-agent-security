@@ -1,0 +1,4 @@
+-r ../product/requirements.txt
+-r ../product/frontend/requirements.txt
+pytest>=8,<10
+httpx>=0.27,<1
