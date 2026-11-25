@@ -98,9 +98,9 @@ docker compose --env-file ../product/.env up --build -d
 ..\.venv\Scripts\python.exe -m scripts.seed_demo
 ```
 
-Mở giao diện kiểm thử `http://localhost:18501`, vào **Lịch sử**, chọn investigation vừa tạo rồi mở kết quả. Case có Run Key, Sysmon network events và Zeek connections định kỳ. Kết quả kỳ vọng có finding Persistence, periodic connections, supported correlations, mức triage High và alert có timing. Dữ liệu này dùng để kiểm tra logic và trình diễn.
+Mở giao diện kiểm thử `http://localhost:18501`, vào **Theo dõi → Lịch sử phân tích**, chọn investigation vừa tạo rồi mở kết quả. Case có Run Key, Sysmon network events và Zeek connections định kỳ. Kết quả kỳ vọng có finding Persistence, periodic connections, supported correlations, mức triage High và alert có timing. Dữ liệu này dùng để kiểm tra logic và trình diễn.
 
-Để upload thủ công, dùng màn hình **Dữ liệu log** và chọn đúng source cho từng file.
+Để nhập thủ công, mở **Nhập log**, kiểm tra nguồn và SHA-256 ở bảng xem trước rồi chọn **Lưu**.
 
 | File | Source |
 |---|---|
@@ -138,13 +138,14 @@ Khoảng thời gian demo là `2026-10-14T08:00:00Z` đến `2026-10-14T09:00:00
 
 ## Không gian điều tra
 
-Giao diện nền sáng trắng/xanh nhạt, ưu tiên luồng Nhập log → Phân tích → Xem kết quả. Bản tối trong `DESIGN-red-team.md` là tham chiếu lịch sử. CSS nằm riêng ở `product/frontend/style.css`; các luồng Streamlit nằm trong `product/frontend/app.py`.
+Trang mặc định **Tổng quan** có biểu đồ phân bố theo nguồn, tần suất theo UTC, loại sự kiện phổ biến và bảng tra trường gốc. Cảnh báo tổng hợp từ các lượt phân tích. Bố cục sáng, thanh điều hướng ngang và nhóm chỉ số dựa trên [ảnh Overview của Wazuh](https://documentation.wazuh.com/current/_images/data-visualization1.png).
 
-- **Tổng quan:** ba chỉ số chính, hướng dẫn bắt đầu, cảnh báo ưu tiên, thanh mức độ cảnh báo và phân tích gần đây. Thông số hiệu năng được thu gọn.
-- **Dữ liệu log:** nhập log, tìm/lọc nguồn, phân trang và kiểm tra nguồn gốc dữ liệu.
-- **Phân tích:** chọn tệp và chế độ; mặc định thời gian bao phủ các tệp. Host/IP, thời gian và chiến lược nằm trong phần tùy chọn. Mở lượt mới sẽ xóa kết quả đang hiển thị của lượt trước.
-- **Kết quả:** bốn tab Kết quả, Diễn biến, Bằng chứng và Báo cáo. Toàn bộ biện pháp đề xuất hiển thị ngay trong tab Kết quả, không cần chọn từng mục. Liên kết và hoạt động AI nằm trong phần mở rộng; tên dấu vết phổ biến có giải thích tiếng Việt, dữ liệu gốc vẫn giữ nguyên.
-- **Cảnh báo và lịch sử:** lọc, tiếp nhận cảnh báo, mở kết quả, đánh giá severity, cập nhật tiến độ và xuất Markdown/JSON. Kết quả và báo cáo được làm mới sau khi lưu đánh giá.
+- **Nhập log** nhận nhiều tệp, nhận diện nguồn, xem trước khoảng thời gian và dùng lại tệp trùng. [Thu và đối chiếu một kết nối trên máy thật](docs/DOI_CHIEU_LOG.md).
+- **Phân tích** cho phép chọn tệp và chạy Offline, Gemini hoặc DeepSeek. Máy, IP, thời gian và chiến lược nằm trong **Phạm vi và tùy chọn**.
+- **Nhận định** hiển thị dấu hiệu trên máy, trên mạng, liên kết giữa hai nguồn và các bước xử lý. Tab **Bằng chứng** chứa log gốc, diễn biến theo thời gian và hoạt động AI. Tab **Báo cáo** cho tải Markdown hoặc JSON.
+- **Theo dõi** cho mở lại lịch sử, xử lý cảnh báo, xem tệp đã nhập, thống kê và tra cứu ATT&CK.
+
+Thử thủ công với [13 kịch bản có log và kết quả kỳ vọng](verification/logs/cases/README.md). Xem [đánh giá trước và sau khi sửa](docs/EVALUATION.md).
 
 ## Provider và budget
 
@@ -195,7 +196,9 @@ Lệnh có gọi provider thật và phát sinh lượt dùng API. Kết quả m
 
 | Endpoint | Chức năng |
 |---|---|
-| `POST /api/v1/logs/upload` | Multipart `file` và `source_type` |
+| `POST /api/v1/logs/preview` | Kiểm tệp, nguồn, số bản ghi, thời gian và SHA-256 trước khi lưu |
+| `POST /api/v1/logs/upload` | Multipart `file`, `source_type`, `reuse_existing`. UI bật dùng lại tệp cùng nội dung và nguồn |
+| `GET /api/v1/overview` | Tổng hợp trên log đã nhập, lọc theo `source` và số giờ `hours` |
 | `GET /api/v1/datasets` | Pagination `limit`, `offset`, header `X-Total-Count` |
 | `GET /api/v1/events` | Dataset, host/IP, time, pagination và `X-Has-More` |
 | `GET /api/v1/evidence/{id}` | Raw và normalized evidence |

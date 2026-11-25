@@ -32,6 +32,17 @@ def _typed(value: str, kind: str, unset: str, empty: str, set_separator: str):
     return _unescape(value)
 
 
+def identify_zeek_source(row: dict) -> str | None:
+    if "_path" in row:
+        return f"zeek_{row['_path']}"
+    for source, fields in (("dns", ("query", "qtype_name", "rcode_name")),
+                           ("http", ("method", "uri", "status_code")),
+                           ("conn", ("conn_state", "orig_bytes", "resp_bytes", "history"))):
+        if any(field in row for field in fields):
+            return "zeek_" + source
+    return None
+
+
 def _normalize(raw: dict, source: str) -> dict:
     ts = raw.get("ts")
     if isinstance(ts, bool) or not isinstance(ts, (float, int)) or not math.isfinite(ts):
@@ -103,6 +114,9 @@ def parse_zeek(data: bytes, source: str) -> list[tuple[int, dict, dict]]:
                 json.dumps(raw, allow_nan=False)
                 if not isinstance(raw, dict):
                     raise ValueError("each line must be an object")
+                detected = identify_zeek_source(raw)
+                if detected and detected != source:
+                    raise ValueError(f"record belongs to {detected}, expected {source}")
             else:
                 values = line.split(separator)
                 if not fields or len(fields) != len(types) or len(fields) != len(set(fields)):

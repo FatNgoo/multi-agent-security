@@ -11,13 +11,15 @@ def investigate_persistence(state: InvestigationState) -> dict:
     tools = state["tools"]
     events = tools.run("persistence", "query_events")
     process_tree = tools.run("persistence", "process_tree")
+    findings = persistence_findings(events)
+    context = {"findings": findings}
     assessments = []
     if tools.request.strategy == "single_agent" and "c2" not in state["plan"]:
-        assessments = [interpret("single_agent", tools, state["mode"])]
+        assessments = [interpret("single_agent", tools, state["mode"], context)]
     elif tools.request.strategy == "multi_agent" and any(event["source"] == "sysmon" for event in events):
-        assessments = [interpret("persistence", tools, state["mode"])]
+        assessments = [interpret("persistence", tools, state["mode"], context)]
     return {
-        "findings": persistence_findings(events),
+        "findings": findings,
         "assessments": assessments,
         "process_tree": process_tree,
     }

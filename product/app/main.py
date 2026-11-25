@@ -1,5 +1,7 @@
 import copy
 import hashlib
+import json
+import re
 import math
 from contextlib import asynccontextmanager
 from typing import Literal
@@ -13,13 +15,14 @@ from app.common import configure_logging, iso, utcnow
 from app.ingestion.sysmon_parser import parse_jsonl
 from app.ingestion.sysmon_xml_parser import parse_sysmon_xml
 from app.ingestion.normalize import normalize_sysmon
-from app.ingestion.zeek_parser import parse_zeek
+from app.ingestion.zeek_parser import identify_zeek_source, parse_zeek
 from app.db.database import SessionLocal, init_db, engine
 from app.db.models import Dataset, Event, Investigation, Finding, Alert, AuditEntry
 from app.schemas.investigation import InvestigationRequest, InvestigationResponse
 from app.schemas.domain import AlertUpdate, ReviewUpdate
 from app.services.investigations import create_job, run_claimed_job, JobWorker
 from app.services.reports import markdown_report
+from app.services.overview import overview
 from app.tools.shared import SharedTools, serialize_event
 from app.services.risk import SEVERITY_ORDER
 from app.tools.attack import lookup, CORPUS_VERSION
@@ -48,18 +51,45 @@ def health():
             "worker_enabled": settings.worker_enabled, "knowledge_version": CORPUS_VERSION}
 
 
-@app.post("/api/v1/logs/upload", status_code=201)
-async def upload_log(file: UploadFile = File(...),
-                     source_type: Literal["sysmon", "zeek_conn", "zeek_dns", "zeek_http"] = Form("sysmon")):
+def detect_source(filename, data):
+    if filename.lower().endswith(".xml"):
+        return "sysmon"
+    text = data.decode("utf-8-sig", errors="replace").lstrip()
+    path = re.search(r"(?m)^#path\s+([^\s]+)", text)
+    if path:
+        return "zeek_" + path[1] if path[1] in {"conn", "dns", "http"} else None
+    try:
+        row = json.loads(next(iter(text.splitlines()), ""))
+    except ValueError:
+        return None
+    if not isinstance(row, dict):
+        return None
+    if {"timestamp", "host", "event_id"} <= row.keys():
+        return "sysmon"
+    if not {"ts", "uid", "id.orig_h", "id.resp_h"} <= row.keys():
+        return None
+    detected = identify_zeek_source(row)
+    return detected if detected in {"zeek_conn", "zeek_dns", "zeek_http"} else None
+
+
+async def read_log(file, source_type):
     filename = file.filename or ""
-    allowed = (".jsonl", ".json", ".xml") if source_type == "sysmon" else (".jsonl", ".json", ".log", ".tsv")
-    if not filename.lower().endswith(allowed):
-        await file.close()
-        raise HTTPException(415, "Unsupported extension for the selected log source")
     data = await file.read(settings.max_upload_bytes + 1)
     await file.close()
     if len(data) > settings.max_upload_bytes:
         raise HTTPException(413, "File too large")
+    if not filename.lower().endswith((".jsonl", ".json", ".xml", ".log", ".tsv")):
+        raise HTTPException(415, "Đuôi tệp chưa được hỗ trợ.")
+    detected = detect_source(filename, data)
+    if source_type == "auto":
+        if not detected:
+            raise HTTPException(422, "Chưa nhận diện được nguồn. Chọn đúng loại log hoặc kiểm tra định dạng tệp.")
+        source_type = detected
+    elif detected and detected != source_type:
+        raise HTTPException(422, f"Nội dung có dạng {detected}, khác nguồn đã chọn.")
+    allowed = (".jsonl", ".json", ".xml") if source_type == "sysmon" else (".jsonl", ".json", ".log", ".tsv")
+    if not filename.lower().endswith(allowed):
+        raise HTTPException(415, "Đuôi tệp chưa được hỗ trợ cho nguồn đã chọn.")
     try:
         if source_type == "sysmon":
             rows = parse_sysmon_xml(data) if filename.lower().endswith(".xml") else parse_jsonl(data)
@@ -72,15 +102,44 @@ async def upload_log(file: UploadFile = File(...),
                         {key: value for key, value in n.items() if key != "timestamp"}, raw) for index, n, raw in rows]
     except ValueError as exc:
         raise HTTPException(422, str(exc)) from exc
-    identifier = str(uuid4())
     sha256 = hashlib.sha256(data).hexdigest()
     times = [r[1] for r in records]
     metadata = {"start_time": iso(min(times)), "end_time": iso(max(times)),
                 "hosts": sorted({r[2] for r in records if r[2]}),
                 "ips": sorted({str(r[5][name]) for r in records for name in ("source_ip", "dest_ip") if r[5].get(name)}),
-                "error_count": 0, "duplicate_policy": "Each upload is an isolated dataset; duplicate_of identifies a prior identical file."}
+                "error_count": 0, "duplicate_policy": "Matching SHA-256 and source may reuse a dataset when requested; duplicate_of links independent copies."}
+    return filename, source_type, records, sha256, metadata
+
+
+LogSource = Literal["auto", "sysmon", "zeek_conn", "zeek_dns", "zeek_http"]
+
+
+@app.post("/api/v1/logs/preview")
+async def preview_log(file: UploadFile = File(...), source_type: LogSource = Form("auto")):
+    filename, source, records, sha256, meta = await read_log(file, source_type)
+    with SessionLocal() as db:
+        duplicate = db.scalar(select(Dataset.id).where(Dataset.sha256 == sha256, Dataset.source == source)
+                              .order_by(Dataset.created_at, Dataset.id).limit(1))
+    return {"filename": filename, "source": source, "records": len(records), "sha256": sha256,
+            "start_time": meta["start_time"], "end_time": meta["end_time"], "duplicate_of": duplicate}
+
+
+@app.post("/api/v1/logs/upload", status_code=201)
+async def upload_log(file: UploadFile = File(...), source_type: LogSource = Form("sysmon"),
+                     reuse_existing: bool = Form(False)):
+    filename, source_type, records, sha256, metadata = await read_log(file, source_type)
+    identifier = str(uuid4())
     with SessionLocal.begin() as db:
-        duplicate = db.scalar(select(Dataset.id).where(Dataset.sha256 == sha256, Dataset.source == source_type).limit(1))
+        if reuse_existing:
+            if db.bind.dialect.name == "postgresql":
+                db.execute(text("SELECT pg_advisory_xact_lock(:key)"), {"key": int(sha256[:15], 16)})
+            else:
+                db.execute(text("BEGIN IMMEDIATE"))
+        duplicate = db.scalar(select(Dataset.id).where(Dataset.sha256 == sha256, Dataset.source == source_type)
+                              .order_by(Dataset.created_at, Dataset.id).limit(1))
+        if reuse_existing and duplicate:
+            return {"dataset_id": duplicate, "filename": filename, "source": source_type, "status": "reused",
+                    "imported_records": 0, "sha256": sha256, "metadata": metadata}
         metadata["duplicate_of"] = duplicate
         db.add(Dataset(id=identifier, filename=filename[:255], source=source_type, total_records=len(records),
                        created_at=utcnow(), sha256=sha256, metadata_json=metadata))
@@ -95,10 +154,12 @@ async def upload_log(file: UploadFile = File(...),
 
 
 @app.get("/api/v1/datasets")
-def datasets(response: Response, limit: int = Query(200, ge=1, le=1000), offset: int = Query(0, ge=0)):
+def datasets(response: Response, limit: int = Query(200, ge=1, le=1000), offset: int = Query(0, ge=0),
+             ids: list[str] | None = Query(None, max_length=20)):
     with SessionLocal() as db:
-        response.headers["X-Total-Count"] = str(db.scalar(select(func.count()).select_from(Dataset)))
-        rows = db.scalars(select(Dataset).order_by(Dataset.created_at.desc(), Dataset.id).offset(offset).limit(limit)).all()
+        criteria = (Dataset.id.in_(ids),) if ids else ()
+        response.headers["X-Total-Count"] = str(db.scalar(select(func.count()).select_from(Dataset).where(*criteria)))
+        rows = db.scalars(select(Dataset).where(*criteria).order_by(Dataset.created_at.desc(), Dataset.id).offset(offset).limit(limit)).all()
         return [{"dataset_id": d.id, "filename": d.filename, "source": d.source, "total_records": d.total_records,
                  "created_at": iso(d.created_at), "sha256": d.sha256, "metadata": d.metadata_json or {}} for d in rows]
 
@@ -287,6 +348,13 @@ def audit(identifier: str):
 @app.get("/api/v1/knowledge")
 def knowledge(query: str = Query("persistence c2", max_length=200)):
     return {"version": CORPUS_VERSION, "results": lookup(query)}
+
+
+@app.get("/api/v1/overview")
+def dashboard_overview(source: Literal["all", "sysmon", "zeek_conn", "zeek_dns", "zeek_http"] = "all",
+                       hours: int = Query(0, ge=0, le=8760)):
+    with SessionLocal() as db:
+        return overview(db, source, hours)
 
 
 @app.get("/api/v1/metrics")

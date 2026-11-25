@@ -1,11 +1,22 @@
 """Synthetic labeled cases, never forensic evidence from an actual incident."""
 import json
+from pathlib import Path
 from datetime import datetime, timezone
 
 START = datetime(2026, 10, 14, 8, tzinfo=timezone.utc)
 
 
+CASE_DIR = Path(__file__).resolve().parents[1] / "logs" / "cases"
+LAB_CASES = json.loads((CASE_DIR / "manifest.json").read_text(encoding="utf-8"))
+BASE_CASES = ("combined", "ambiguous", "benign", "negative")
+
+
 def scenario(name="combined"):
+    if name in LAB_CASES:
+        return {source: [json.loads(line) for line in (CASE_DIR / name / f"{source}.jsonl").read_text(encoding="utf-8").splitlines()]
+                for source in LAB_CASES[name]["sources"]}
+    if name not in BASE_CASES:
+        raise ValueError(f"Unknown synthetic case: {name}")
     guid = "{SIMULATED-PROCESS-01}"
     sysmon = [
         {"timestamp": START.isoformat(), "host": "WIN-LAB-01", "event_id": 1,

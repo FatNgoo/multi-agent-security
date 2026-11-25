@@ -1,3 +1,4 @@
+import ntpath
 import re
 from uuid import uuid4
 
@@ -7,6 +8,16 @@ def finding(rule, title, agent, evidence_ids, technique=None, confidence="medium
             "evidence_ids": evidence_ids, "technique_ids": [technique] if technique else [],
             "confidence": confidence, "classification": classification,
             "limitations": [], **extra}
+
+
+def service_change(command):
+    # A service can itself be named "config". Only the operation identifies a change.
+    tokens = [word.strip('"') for word in re.findall(r'"[^"]*"|\S+', command)]
+    if tokens and ntpath.basename(tokens[0]) in {"sc", "sc.exe"}:
+        tokens.pop(0)
+    if tokens and tokens[0].startswith("\\\\"):
+        tokens.pop(0)
+    return bool(tokens and tokens[0] in {"create", "config"})
 
 
 def persistence_findings(events):
@@ -19,17 +30,21 @@ def persistence_findings(events):
         command = str(n.get("command_line") or "").lower()
         image = str(n.get("image") or "").lower()
         rule, title, technique = None, None, None
-        if event["event_id"] in {12, 13, 14} and re.search(r"\\currentversion\\run(?:once|onceex)?(?:\\|$)", target):
+        raw = event.get("raw") or {}
+        event_type = (raw.get("event_data") or {}).get("EventType") or raw.get("EventType") or raw.get("event_type")
+        registry = event["event_id"] in {12, 13, 14}
+        registry_write = registry and str(event_type).casefold() not in {"deletekey", "deletevalue"}
+        if registry_write and re.search(r"\\currentversion\\run(?:once|onceex)?(?:\\|$)", target):
             rule, title, technique = "run_key", "Registry autorun configuration observed", "T1547.001"
-        elif "\\start menu\\programs\\startup\\" in target:
+        elif event["event_id"] == 11 and "\\start menu\\programs\\startup\\" in target:
             rule, title, technique = "startup", "Startup folder modification observed", "T1547.001"
-        elif ("\\taskcache\\" in target or
-              (event["event_id"] == 1 and "schtasks" in image and re.search(r"(?:^|\s)/create(?:\s|$)", command))):
+        elif ((registry_write and "\\taskcache\\" in target) or
+              (event["event_id"] == 1 and ntpath.basename(image) == "schtasks.exe" and re.search(r"(?:^|\s)/create(?:\s|$)", command))):
             rule, title, technique = "scheduled_task", "Scheduled task creation indicator", "T1053.005"
-        elif (("\\system\\currentcontrolset\\services\\" in target and target.endswith("\\imagepath")) or
-              (event["event_id"] == 1 and image.endswith("\\sc.exe") and re.search(r"\b(create|config)\b", command))):
+        elif ((registry_write and "\\system\\currentcontrolset\\services\\" in target and target.endswith("\\imagepath")) or
+              (event["event_id"] == 1 and ntpath.basename(image) == "sc.exe" and service_change(command))):
             rule, title, technique = "service", "Windows service configuration indicator", "T1543.003"
-        elif event["event_id"] in {12, 13, 14}:
+        elif registry:
             rule, title = "registry_change", "Registry change requiring context"
         if rule:
             findings.append(finding(rule, title, "persistence", [event["evidence_id"]], technique,

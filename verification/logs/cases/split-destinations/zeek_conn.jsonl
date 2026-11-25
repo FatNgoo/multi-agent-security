@@ -1,0 +1,8 @@
+{"ts":1791964860,"uid":"LABCONN0","id.orig_h":"192.0.2.10","id.orig_p":52000,"id.resp_h":"198.51.100.20","id.resp_p":443,"proto":"tcp","service":"ssl","duration":0.5,"orig_bytes":120,"resp_bytes":64,"conn_state":"SF"}
+{"ts":1791964920,"uid":"LABCONN1","id.orig_h":"192.0.2.10","id.orig_p":52001,"id.resp_h":"198.51.100.21","id.resp_p":443,"proto":"tcp","service":"ssl","duration":0.5,"orig_bytes":120,"resp_bytes":64,"conn_state":"SF"}
+{"ts":1791964980,"uid":"LABCONN2","id.orig_h":"192.0.2.10","id.orig_p":52002,"id.resp_h":"198.51.100.20","id.resp_p":443,"proto":"tcp","service":"ssl","duration":0.5,"orig_bytes":120,"resp_bytes":64,"conn_state":"SF"}
+{"ts":1791965040,"uid":"LABCONN3","id.orig_h":"192.0.2.10","id.orig_p":52003,"id.resp_h":"198.51.100.21","id.resp_p":443,"proto":"tcp","service":"ssl","duration":0.5,"orig_bytes":120,"resp_bytes":64,"conn_state":"SF"}
+{"ts":1791965100,"uid":"LABCONN4","id.orig_h":"192.0.2.10","id.orig_p":52004,"id.resp_h":"198.51.100.20","id.resp_p":443,"proto":"tcp","service":"ssl","duration":0.5,"orig_bytes":120,"resp_bytes":64,"conn_state":"SF"}
+{"ts":1791965160,"uid":"LABCONN5","id.orig_h":"192.0.2.10","id.orig_p":52005,"id.resp_h":"198.51.100.21","id.resp_p":443,"proto":"tcp","service":"ssl","duration":0.5,"orig_bytes":120,"resp_bytes":64,"conn_state":"SF"}
+{"ts":1791965220,"uid":"LABCONN6","id.orig_h":"192.0.2.10","id.orig_p":52006,"id.resp_h":"198.51.100.20","id.resp_p":443,"proto":"tcp","service":"ssl","duration":0.5,"orig_bytes":120,"resp_bytes":64,"conn_state":"SF"}
+{"ts":1791965280,"uid":"LABCONN7","id.orig_h":"192.0.2.10","id.orig_p":52007,"id.resp_h":"198.51.100.21","id.resp_p":443,"proto":"tcp","service":"ssl","duration":0.5,"orig_bytes":120,"resp_bytes":64,"conn_state":"SF"}

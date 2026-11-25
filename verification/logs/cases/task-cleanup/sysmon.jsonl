@@ -1,0 +1,1 @@
+{"timestamp":"2026-10-14T08:00:10.000Z","host":"WIN-LAB-01","event_id":12,"description":"SYNTHETIC · Registry key deleted","process_guid":"{00000000-0000-4000-8000-000000000001}","target_object":"HKLM\\SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\Schedule\\TaskCache\\Tree\\LabMarker","event_data":{"EventType":"DeleteKey"}}

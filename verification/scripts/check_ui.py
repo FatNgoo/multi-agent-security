@@ -25,16 +25,6 @@ def main():
     app = AppTest.from_file(str(Path(__file__).resolve().parents[2] / "product/frontend/app.py"), default_timeout=30).run()
     assert not app.exception, [e.message for e in app.exception]
     assert not app.error, [e.value for e in app.error]
-    print("PASS Tổng quan")
-    pages = ["Datasets", "Điều tra", "Cảnh báo", "Lịch sử & báo cáo", "Kiến thức & cấu hình"]
-    for page in pages:
-        app.session_state["active_job"] = result["investigation_id"]
-        app.session_state["job_status"] = "completed"
-        app.session_state["terminal_job"] = None
-        app.sidebar.radio[0].set_value(page).run()
-        assert not app.exception, [e.message for e in app.exception]
-        assert not app.error, [e.value for e in app.error]
-        print(f"PASS {page}")
     def button(label):
         return next(item for item in app.button if item.label == label)
 
@@ -46,11 +36,16 @@ def main():
         assert not app.error, [e.value for e in app.error]
 
     # Exercise real callbacks and validation rather than only rendering pages.
-    app.button(key="header_new").click().run()
-    assert app.sidebar.radio[0].value == "Điều tra"
-    assert not app.session_state["active_job"] and not app.session_state["last_result"]
-    button("Bắt đầu điều tra").click().run()
-    assert any("Chọn ít nhất" in error.value for error in app.error)
+    assert app.radio(key="nav").value == "Tổng quan"
+    app.radio(key="nav").set_value("Nhập log").run()
+    clean()
+    app.radio(key="nav").set_value("Phân tích").run()
+    assert button("Phân tích log").disabled
+    app.radio(key="nav").set_value("Theo dõi").run()
+    for view in ["Lịch sử phân tích", "Cảnh báo", "Tệp đã nhập", "Thống kê", "Tra cứu ATT&CK"]:
+        app.selectbox(key="monitor_view").set_value(view).run()
+        clean()
+    app.radio(key="nav").set_value("Phân tích").run()
     app.multiselect(key="scope_datasets").set_value(result["dataset_ids"]).run()
     start = datetime.fromisoformat(result["scope"]["start_time"])
     end = datetime.fromisoformat(result["scope"]["end_time"])
@@ -59,14 +54,14 @@ def main():
     app.checkbox(key="scope_mapping").set_value(True)
     app.date_input(key="start_date").set_value(end.date() + timedelta(days=1))
     app.date_input(key="end_date").set_value(end.date())
-    button("Bắt đầu điều tra").click().run()
+    button("Phân tích log").click().run()
     assert any("bắt đầu phải trước" in error.value for error in app.error)
     app.date_input(key="start_date").set_value(start.date())
     app.time_input(key="start_clock").set_value(start.time().replace(tzinfo=None))
     app.time_input(key="end_clock").set_value(end.time().replace(tzinfo=None))
-    app.selectbox(key="scope_mode").set_value("offline")
+    app.radio(key="scope_mode").set_value("offline")
     app.text_area(key="scope_extra_mappings").set_value("[]")
-    button("Bắt đầu điều tra").click().run()
+    button("Phân tích log").click().run()
     deadline = time.monotonic() + 15
     while not app.session_state["last_result"] and time.monotonic() < deadline:
         time.sleep(0.1)
@@ -76,10 +71,10 @@ def main():
     identifier = fresh["investigation_id"]
     assert fresh["status"] == "completed" and fresh["risk"]["severity"] == "high"
     assert fresh["scope"]["host_mappings"][0]["ip"] == "192.0.2.10"
-    assert len(app.tabs) == 4
+    assert [tab.label for tab in app.tabs] == ["Nhận định", "Bằng chứng", "Báo cáo"]
     print("PASS new-investigation callback, scope validation, date/time form, host mapping and completion")
 
-    app.radio(key=f"finding_{identifier}").set_value(1).run()
+    app.selectbox(key=f"finding_{identifier}").set_value(1).run()
     clean()
     evidence_tables = lambda: [table for table in app.dataframe if "Evidence ID" in table.value.columns]
     before = len(evidence_tables())
@@ -89,7 +84,7 @@ def main():
     app.text_input(key="evidence_search").set_value("")
     app.multiselect(key="evidence_sources").set_value(["zeek_conn"]).run()
     clean()
-    table = evidence_tables()[-1]
+    table = next(table for table in evidence_tables() if set(table.value['Nguồn']) == {'Zeek · Kết nối'})
     assert set(table.value["Nguồn"]) == {"Zeek · Kết nối"}
     assert len(table.value) == sum(e["source"] == "zeek_conn" for e in fresh["evidence"])
     print("PASS finding selection, evidence search, source filter and empty state")
@@ -116,7 +111,8 @@ def main():
     assert len(response.json()) >= 1
     print("PASS consolidated response plan, severity review, refreshed result, reports and audit")
 
-    app.sidebar.radio[0].set_value("Cảnh báo").run()
+    app.radio(key="nav").set_value("Theo dõi").run()
+    app.selectbox(key="monitor_view").set_value("Cảnh báo").run()
     selector = field(app.selectbox, "Xử lý cảnh báo")
     selector.select_index(next(i for i, label in enumerate(selector.options) if identifier[:8] in label)).run()
     assert field(app.selectbox, "Xử lý cảnh báo").value["investigation_id"] == identifier
@@ -128,16 +124,21 @@ def main():
     assert next(a for a in alerts if a["investigation_id"] == identifier)["status"] == "acknowledged"
     button("Mở kết quả điều tra →").click().run()
     clean()
-    assert app.sidebar.radio[0].value == "Lịch sử & báo cáo"
+    assert app.radio(key="nav").value == "Phân tích"
     assert app.session_state["last_result"]["investigation_id"] == identifier
     print("PASS alert acknowledgment and navigation to investigation result")
 
+    app.button(key="header_new").click().run()
+    clean()
+    assert app.session_state["active_job"] is None and app.session_state["last_result"] is None
+    assert not app.tabs
+
     target = Path(args.output)
     target.parent.mkdir(parents=True, exist_ok=True)
-    target.write_text(json.dumps({"status": "passed", "investigation_id": identifier, "screens": 6, "result_tabs": 4,
+    target.write_text(json.dumps({"status": "passed", "investigation_id": identifier, "main_sections": 4, "result_tabs": 3,
                                  "checks": ["render", "navigation", "scope validation", "date/time", "host mapping", "offline execution", "finding selection", "evidence filtering", "consolidated response plan", "severity review", "alert review", "reports", "audit"],
                                  "visual_browser_check": "not covered by AppTest; verify separately in browser"}, indent=2), encoding="utf-8")
-    print("PASS all six screens, four result tabs and analyst interactions")
+    print("PASS four main sections, three result tabs and analyst interactions")
 
 
 if __name__ == "__main__":

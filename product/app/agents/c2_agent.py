@@ -8,14 +8,16 @@ def run_c2_agent(state: InvestigationState) -> dict:
     tools = state["tools"]
     events = tools.run("c2", "query_events")
     statistics = tools.run("c2", "beacon_statistics")
+    findings = c2_findings(events, statistics)
+    context = {"findings": findings, "persistence_findings": state["findings"], "beacon_statistics": statistics}
     assessments = list(state["assessments"])
     if tools.request.strategy == "single_agent":
-        assessments.append(interpret("single_agent", tools, state["mode"]))
+        assessments.append(interpret("single_agent", tools, state["mode"], context))
     elif tools.request.strategy == "multi_agent" and any(event["source"].startswith("zeek") for event in events):
         assessments.append(interpret(
-            "c2", tools, state["mode"], {"persistence_findings": state["findings"], "beacon_statistics": statistics},
+            "c2", tools, state["mode"], context,
         ))
     return {
-        "findings": state["findings"] + c2_findings(events, statistics),
+        "findings": state["findings"] + findings,
         "assessments": assessments,
     }

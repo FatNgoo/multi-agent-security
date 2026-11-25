@@ -9,6 +9,8 @@ không phải bằng chứng đã có malware hay một cuộc xâm nhập thậ
 Các bước dưới đây chưa được tự chạy trên endpoint của bạn. Chỉ bắt đầu khi đã bố trí
 máy lab; kết quả kỳ vọng là tiêu chí đối chiếu, không phải kết quả đo sẵn.
 
+Để kiểm tra nhanh đường đi của **một kết nối HTTP** từ máy Windows tới dashboard, xem [hướng dẫn xuất và đối chiếu từng bản ghi](DOI_CHIEU_LOG.md).
+
 ## 1. Bạn sẽ quan sát được gì?
 
 Sau một lượt hoàn chỉnh, bạn có thể đối chiếu bốn nguồn độc lập:
@@ -448,7 +450,7 @@ Mở `http://localhost:8501`.
 
 ### Upload
 
-Vào **Dữ liệu log**, upload từng file, chọn đúng source:
+Vào **Nhập log**, chọn các tệp, đối chiếu nguồn và SHA-256 trong bảng xem trước rồi bấm **Lưu**.
 
 | File | Source |
 |---|---|
@@ -459,11 +461,11 @@ Vào **Dữ liệu log**, upload từng file, chọn đúng source:
 
 Không upload `traffic.pcap`, EVTX, `scenario.json` hoặc `collection.json` như log đầu
 vào. Lưu dataset UUID trả về hoặc chụp lại metadata. Không chọn dataset demo cũ cho ca
-này. Mỗi lần upload lại tạo dataset riêng, không tự gộp/deduplicate record.
+này. Giao diện dùng lại dataset nếu tệp có cùng SHA-256 và nguồn. Hãy chọn một bản nếu nhiều tệp khác hash chứa cùng sự kiện.
 
 ### Phạm vi điều tra
 
-Vào **Phân tích**, mở **Chọn máy & thời gian cụ thể (tùy chọn)** khi cần nhập host/IP và thời gian:
+Vào **Phân tích**, mở **Phạm vi và tùy chọn** khi cần nhập host/IP và thời gian:
 
 1. Chỉ chọn dataset của ca `combined-01`.
 2. Lấy `start_utc`/`end_utc` từ `scenario.json`. Form dùng UTC; không nhập giờ địa phương
@@ -474,7 +476,7 @@ Vào **Phân tích**, mở **Chọn máy & thời gian cụ thể (tùy chọn)*
 5. Dùng mức quan trọng tài sản `medium` cho lần đối chứng đầu, nếu giao diện có tùy chọn.
 6. Chọn mode `offline` trước. Mode này **phân tích log thật** bằng pipeline deterministic,
    chỉ không gọi LLM. Nó không thay log của bạn bằng dữ liệu giả.
-7. Bắt đầu điều tra, lưu investigation UUID, trạng thái kết thúc và các cảnh báo coverage.
+7. Bấm **Phân tích log**, lưu investigation UUID, trạng thái kết thúc và các cảnh báo coverage.
 
 Mapping mẫu, **thay thời gian và host trước khi dùng**:
 
@@ -512,8 +514,7 @@ Với mặc định hiện tại, detector periodic cần ít nhất **6 kết n
 các lần bắt đầu kết nối **≤ 0,15**. Lab chính gửi 12 request ở lịch 15 giây để có dư mẫu.
 CV thấp là dấu hiệu chu kỳ; dịch vụ monitoring cũng có dấu hiệu này.
 
-Mở các tab **Kết quả**, **Diễn biến**, **Bằng chứng** và **Báo cáo**. Liên kết nằm trong
-phần mở rộng ở Diễn biến; hoạt động AI nằm trong phần thông tin kỹ thuật ở Bằng chứng.
+Đọc **Nhận định**, sau đó mở **Bằng chứng** để xem diễn biến, liên kết Sysmon và Zeek cùng hoạt động AI. Mục **Báo cáo** cho tải kết quả.
 Kiểm tra các evidence ID thật sự trỏ tới file/dòng đã upload. So sánh timestamp raw và
 normalized, destination và source port; không chỉ nhìn nhãn màu.
 

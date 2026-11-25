@@ -9,7 +9,7 @@ import logging
 from datetime import datetime, timezone
 from pathlib import Path
 from statistics import median
-from scripts.scenarios import scenario, jsonl
+from scripts.scenarios import BASE_CASES, LAB_CASES, scenario, jsonl
 
 
 def run_case(client, case, strategy, mode):
@@ -28,14 +28,18 @@ def run_case(client, case, strategy, mode):
     response = client.post("/api/v1/investigate", json=scope)
     response.raise_for_status()
     result = response.json()
-    expected_rules = {"combined": {"run_key", "periodic_connection"}, "ambiguous": {"run_key", "periodic_connection"},
-                      "benign": {"periodic_connection"}, "negative": set()}[case]
+    base_rules = {"combined": {"run_key", "periodic_connection"}, "ambiguous": {"run_key", "periodic_connection"},
+                      "benign": {"periodic_connection"}, "negative": set()}
+    label = LAB_CASES.get(case)
+    expected_rules = set(label["rules"]) if label else base_rules[case]
     predicted = {f["rule_id"] for f in result["findings"]}
     by_id = {e["evidence_id"]: e for e in result["evidence"]}
     refs = [ref for f in result["findings"] + result["relationships"] for ref in f["evidence_ids"]]
     refs += [ref for a in result["assessments"] if a.get("assessment") for ref in a["assessment"]["evidence_ids"]]
     relevant = set()
-    if case != "negative":
+    if label:
+        relevant = {(source, index) for source, indices in label["relevant_records"].items() for index in indices}
+    elif case != "negative":
         relevant.update(("zeek_conn", i) for i in range(1, len(records["zeek_conn"]) + 1))
         relevant.update(("sysmon", i) for i, raw in enumerate(records["sysmon"], 1) if raw["event_id"] in {3, 13})
     recovered = {(by_id[ref]["source"], by_id[ref]["record_index"]) for ref in refs if ref in by_id}
@@ -43,8 +47,12 @@ def run_case(client, case, strategy, mode):
     precision = true_positive / len(predicted) if predicted else None
     recall = true_positive / len(expected_rules) if expected_rules else None
     f1 = 2 * precision * recall / (precision + recall) if precision is not None and recall is not None and precision + recall else None
-    expected_severity = {"combined": "high", "ambiguous": "medium", "benign": "low", "negative": "unknown"}[case]
-    expected_relationship = {"combined": "supported_correlation", "ambiguous": "hypothesis", "benign": None, "negative": None}[case]
+    expected_severity = label["severity"] if label else {"combined": "high", "ambiguous": "medium", "benign": "low", "negative": "unknown"}[case]
+    base_links = {"combined": ["supported_correlation"], "ambiguous": ["hypothesis"], "benign": [], "negative": []}
+    expected_links = set(label["relationships"] if label else base_links[case])
+    steps = result["response_plan"]["steps"]
+    remedy_refs = [ref for step in steps for ref in step["evidence_ids"]]
+    disruptive = any(a["phase"] in {"contain", "remediate"} for f in result["findings"] for a in f["recommendations"])
     relationships = {r["type"] for r in result["relationships"]}
     return {"case": case, "strategy": strategy, "mode": result["mode"], "investigation_id": result["investigation_id"],
             "finding_unit": "distinct deterministic rule_id per scenario",
@@ -53,7 +61,9 @@ def run_case(client, case, strategy, mode):
             "evidence_validity": sum(ref in by_id for ref in refs) / len(refs) if refs else None,
             "evidence_completeness": len(recovered & relevant) / len(relevant) if relevant else None,
             "severity": result["risk"]["severity"], "severity_match": result["risk"]["severity"] == expected_severity,
-            "relationship_match": expected_relationship in relationships if expected_relationship else not relationships,
+            "relationship_match": expected_links == relationships,
+            "response_refs_ok": all(step["evidence_ids"] for step in steps) and all(ref in by_id for ref in remedy_refs),
+            "disruptive_playbook": disruptive,
             "unsupported_claim_rate": None, "semantic_claim_review": "Requires analyst-labeled claim annotations",
             "runtime_ms": result["timings"]["total_ms"], "detection_to_alert_ms": result["timings"]["detection_to_alert_ms"],
             "tool_calls": len(result["timings"]["tool_trace"]), "llm_calls": result["timings"]["llm_calls"],
@@ -63,6 +73,7 @@ def run_case(client, case, strategy, mode):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--mode", choices=["offline", "gemini", "deepseek"], default="offline")
+    parser.add_argument("--case", choices=(*BASE_CASES, *LAB_CASES), action="append", help="Run only the named scenario (repeatable)")
     parser.add_argument("--runs", type=int, default=3)
     parser.add_argument("--output", default=str(ARTIFACTS / "evaluation.json"))
     args = parser.parse_args()
@@ -82,7 +93,7 @@ def main():
     rows = []
     with TestClient(app) as client:
         for iteration in range(args.runs):
-            for case in ("combined", "ambiguous", "benign", "negative"):
+            for case in dict.fromkeys(args.case or (*BASE_CASES, *LAB_CASES)):
                 for strategy in ("heuristic", "single_agent", "multi_agent"):
                     row = run_case(client, case, strategy, args.mode)
                     row["run"] = iteration + 1

@@ -1,0 +1,216 @@
+{
+  "startup-file": {
+    "description": "Tệp xuất hiện trong Startup sau khi mở trình duyệt. Nguồn xâm nhập chưa xác định.",
+    "rules": [
+      "startup"
+    ],
+    "severity": "medium",
+    "relationships": [],
+    "relevant_records": {
+      "sysmon": [
+        2
+      ]
+    },
+    "sources": [
+      "sysmon"
+    ]
+  },
+  "startup-cleanup": {
+    "description": "Đối chứng dọn tệp Startup. Chỉ quan sát sự kiện xóa.",
+    "rules": [],
+    "severity": "unknown",
+    "relationships": [],
+    "relevant_records": {},
+    "sources": [
+      "sysmon"
+    ]
+  },
+  "task-after-document": {
+    "description": "Ứng dụng tài liệu được mở, sau đó có thay đổi TaskCache. Chưa xác minh quan hệ nhân quả.",
+    "rules": [
+      "scheduled_task"
+    ],
+    "severity": "medium",
+    "relationships": [],
+    "relevant_records": {
+      "sysmon": [
+        2
+      ]
+    },
+    "sources": [
+      "sysmon"
+    ]
+  },
+  "task-cleanup": {
+    "description": "Quản trị viên xóa khóa của tác vụ cũ.",
+    "rules": [
+      "registry_change"
+    ],
+    "severity": "informational",
+    "relationships": [],
+    "relevant_records": {
+      "sysmon": [
+        1
+      ]
+    },
+    "sources": [
+      "sysmon"
+    ]
+  },
+  "service-change": {
+    "description": "Thay đổi ImagePath của dịch vụ sau một hoạt động cài đặt.",
+    "rules": [
+      "service"
+    ],
+    "severity": "medium",
+    "relationships": [],
+    "relevant_records": {
+      "sysmon": [
+        2
+      ]
+    },
+    "sources": [
+      "sysmon"
+    ]
+  },
+  "service-inventory": {
+    "description": "Truy vấn dịch vụ có tên config trong phiên kiểm kê chỉ đọc.",
+    "rules": [],
+    "severity": "unknown",
+    "relationships": [],
+    "relevant_records": {},
+    "sources": [
+      "sysmon"
+    ]
+  },
+  "autorun-cleanup": {
+    "description": "Xóa một giá trị Run khi gỡ phần mềm.",
+    "rules": [
+      "registry_change"
+    ],
+    "severity": "informational",
+    "relationships": [],
+    "relevant_records": {
+      "sysmon": [
+        1
+      ]
+    },
+    "sources": [
+      "sysmon"
+    ]
+  },
+  "dns-label": {
+    "description": "Một nhãn DNS dài qua resolver nội bộ giữa các truy vấn ngắn.",
+    "rules": [
+      "long_dns_label"
+    ],
+    "severity": "low",
+    "relationships": [],
+    "relevant_records": {
+      "zeek_dns": [
+        2
+      ]
+    },
+    "sources": [
+      "zeek_dns"
+    ]
+  },
+  "dns-multi-label": {
+    "description": "Tên DNS dài tổng cộng nhưng từng nhãn đều ngắn.",
+    "rules": [],
+    "severity": "unknown",
+    "relationships": [],
+    "relevant_records": {},
+    "sources": [
+      "zeek_dns"
+    ]
+  },
+  "short-series": {
+    "description": "Năm kết nối đều tới một đích, chưa đủ số mẫu mặc định.",
+    "rules": [],
+    "severity": "unknown",
+    "relationships": [],
+    "relevant_records": {},
+    "sources": [
+      "zeek_conn"
+    ]
+  },
+  "service-periodic": {
+    "description": "Tiến trình sửa dịch vụ cũng kết nối ra ngoài. Event 3 khớp flow Zeek.",
+    "rules": [
+      "service",
+      "periodic_connection"
+    ],
+    "severity": "high",
+    "relationships": [
+      "supported_correlation"
+    ],
+    "relevant_records": {
+      "sysmon": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9
+      ],
+      "zeek_conn": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8
+      ]
+    },
+    "sources": [
+      "sysmon",
+      "zeek_conn"
+    ]
+  },
+  "other-process": {
+    "description": "Có cấu hình Run và flow định kỳ. Event 3 thuộc tiến trình khác.",
+    "rules": [
+      "run_key",
+      "periodic_connection"
+    ],
+    "severity": "medium",
+    "relationships": [
+      "hypothesis"
+    ],
+    "relevant_records": {
+      "sysmon": [
+        1
+      ],
+      "zeek_conn": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8
+      ]
+    },
+    "sources": [
+      "sysmon",
+      "zeek_conn"
+    ]
+  },
+  "split-destinations": {
+    "description": "Tám kết nối được chia cho hai đích, mỗi đích chỉ có bốn mẫu.",
+    "rules": [],
+    "severity": "unknown",
+    "relationships": [],
+    "relevant_records": {},
+    "sources": [
+      "zeek_conn"
+    ]
+  }
+}

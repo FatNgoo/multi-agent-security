@@ -1,0 +1,2 @@
+{"timestamp":"2026-10-14T08:00:00.000Z","host":"WIN-LAB-01","event_id":1,"description":"SYNTHETIC · Process observed","process_guid":"{00000000-0000-4000-8000-000000000001}","image":"browser.exe"}
+{"timestamp":"2026-10-14T08:00:09.000Z","host":"WIN-LAB-01","event_id":11,"description":"SYNTHETIC · File created","process_guid":"{00000000-0000-4000-8000-000000000001}","target_filename":"C:\\Users\\Lab\\AppData\\Roaming\\Microsoft\\Windows\\Start Menu\\Programs\\Startup\\LabMarker.lnk"}

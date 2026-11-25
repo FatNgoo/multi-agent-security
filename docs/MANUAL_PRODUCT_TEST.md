@@ -63,8 +63,7 @@ Nếu là một bản clone mới và chưa có `.env`, dùng `Copy-Item .env.ex
 `POSTGRES_PASSWORD` trước khi chạy. Giữ nguyên `.env` đã có; không chép mẫu đè API key.
 
 Health phải có `status: healthy`, `environment: product`. Mở `http://localhost:8501`,
-nhấn Ctrl+F5 để bỏ phiên giao diện cũ. Với database mới, Tổng quan phải có 0 tệp log,
-0 cảnh báo và chưa có lịch sử phân tích.
+nhấn Ctrl+F5 để bỏ phiên giao diện cũ. Với database mới, **Tổng quan** hiển thị 0 bản ghi. Nút **Nhập log** mở màn hình xem trước. Mục **Theo dõi** cho xem lịch sử và cảnh báo.
 
 Bạn có thể đọc trạng thái mà không ghi dữ liệu:
 
@@ -87,8 +86,7 @@ Bạn có hai lựa chọn; thao tác upload hoàn toàn do bạn thực hiện:
 - Tệp mẫu để làm quen giao diện: mở `verification/logs/samples/`. Những file này luôn
   nằm riêng trên ổ đĩa và không xuất hiện trong sản phẩm cho tới khi bạn upload.
 
-Trong giao diện sản phẩm, vào **Dữ liệu log** → chọn loại log → chọn file → bấm
-**Nhập & kiểm tra dữ liệu**. Đối chiếu bảng sau:
+Mở **Nhập log**, chọn các tệp, kiểm tra nguồn, số bản ghi và thời điểm ở bảng xem trước rồi bấm **Lưu**. Khi cần chỉ định nguồn thủ công, mở **Điều chỉnh nguồn**.
 
 | File | Loại log cần chọn |
 |---|---|
@@ -102,8 +100,7 @@ log đầu vào. Giữ các file này để lưu trữ/đối chiếu. Giới h�
 5.000.000 byte. Sysmon XML cần một `<Event>` hoặc `<Events>` hợp lệ; Zeek JSON cần
 mỗi dòng một object, không phải mảng JSON.
 
-Ghi lại filename, số record, dataset UUID và SHA-256. Upload lại cùng file sẽ tạo
-dataset khác; chỉ chọn một bản khi phân tích để tránh đếm lặp.
+Ghi lại tên tệp, số bản ghi và SHA-256. Giao diện dùng lại dataset khi nhập cùng nội dung và nguồn. API trực tiếp hỗ trợ tạo dataset riêng khi bỏ tùy chọn `reuse_existing`. Các tệp khác hash vẫn có thể chứa sự kiện trùng hoặc khoảng thu chồng lấn. [Cách đối chiếu với máy thật](DOI_CHIEU_LOG.md).
 
 Sau upload, số tệp log tăng. **Cảnh báo và kết quả chưa tự xuất hiện**: bạn còn phải
 bắt đầu một lượt phân tích. Điều này giúp bạn kiểm soát từng thao tác thử nghiệm.
@@ -111,18 +108,16 @@ bắt đầu một lượt phân tích. Điều này giúp bạn kiểm soát t�
 ## 6. Tự chạy phân tích
 
 Vào **Phân tích** và chọn chính các file vừa nhập. Mặc định form lấy thời gian bao phủ
-các file. Nếu cần giới hạn, mở **Chọn máy & thời gian cụ thể**:
+các file. Nếu cần giới hạn, mở **Phạm vi và tùy chọn**:
 
 1. Host phải đúng tên trong Sysmon, kể cả FQDN nếu có.
 2. IP phải là IP máy nguồn trong log, không phải IP server nhận heartbeat.
 3. Thời gian trên form là UTC. Không copy khoảng thời gian demo cho log thu hôm khác.
 4. Chỉ xác nhận mapping host–IP khi bạn biết chúng thuộc cùng máy trong khoảng đó.
 5. Chọn Offline lần đầu để kiểm tra luồng mà không gọi API AI.
-6. Bấm **Bắt đầu điều tra**, đợi hoàn thành và lưu investigation UUID.
+6. Bấm **Phân tích log**, đợi hoàn thành và lưu investigation UUID.
 
-Kết quả gồm bốn tab. Ở **Kết quả**, đọc dấu vết và toàn bộ biện pháp đề xuất; ở
-**Diễn biến**, đối chiếu thời gian/liên kết; ở **Bằng chứng**, xem raw record và nguồn;
-ở **Báo cáo**, tải JSON/Markdown.
+Tab **Nhận định** hiển thị dấu hiệu Persistence, C2, liên kết và toàn bộ biện pháp đề xuất. Trong **Bằng chứng**, đối chiếu thời gian, liên kết và log gốc. Trong **Báo cáo**, tải JSON hoặc Markdown.
 
 Thông báo Offline có nghĩa là phân tích bằng luật/thống kê, không có LLM; log đầu vào
 vẫn là log bạn tự upload. Không coi chưa có finding là chứng minh máy an toàn: kiểm tra

@@ -49,7 +49,8 @@ def parse_sysmon_xml(data: bytes) -> list[tuple[int, SysmonRecord, dict]]:
         event_id = _field_text(system, "EventID")
         host = _field_text(system, "Computer")
         created = _child(system, "TimeCreated")
-        time_value = created.attrib.get("SystemTime", "") if created is not None else ""
+        system_time = created.attrib.get("SystemTime", "") if created is not None else ""
+        time_value = system_time
         # TimeCreated uses UTC Z on Windows, with up to 7 fractional digits.
         if time_value.endswith("Z"):
             time_value = time_value[:-1] + "+00:00"
@@ -83,7 +84,9 @@ def parse_sysmon_xml(data: bytes) -> list[tuple[int, SysmonRecord, dict]]:
         raw = {
             "format": "windows_event_xml", "provider": provider_name,
             "event_id": record.event_id, "computer": host,
-            "time_created": time_value, "event_data": fields,
+            "event_record_id": _field_text(system, "EventRecordID") or None,
+            "channel": _field_text(system, "Channel") or None,
+            "time_created": system_time, "event_data": fields,
         }
         results.append((position, record, raw))
     return results

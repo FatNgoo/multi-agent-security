@@ -3,7 +3,7 @@ WORKDIR /frontend
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
 COPY frontend/requirements.txt /frontend/requirements.txt
 RUN uv pip install --system -r /frontend/requirements.txt
-COPY frontend/app.py /frontend/app.py
+COPY frontend/app.py frontend/overview_ui.py frontend/import_ui.py /frontend/
 COPY frontend/style.css /frontend/style.css
 COPY frontend/.streamlit /frontend/.streamlit
 ENV PYTHONUNBUFFERED=1

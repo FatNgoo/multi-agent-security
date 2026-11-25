@@ -12,8 +12,8 @@ def test_timeline_renders_mixed_iso_precision_and_offsets(monkeypatch, reverse):
     def local_response(method, url, **kwargs):
         if url.endswith('/health'):
             body = {'status': 'healthy', 'database': 'sqlite', 'mode': 'offline', 'worker_enabled': False}
-        elif url.endswith('/api/v1/knowledge'):
-            body = {'version': 'test', 'results': []}
+        elif url.endswith('/api/v1/datasets?limit=1000'):
+            body = []
         else:
             raise AssertionError(f'Unexpected HTTP request: {method} {url}')
         response = requests.Response()
@@ -36,9 +36,10 @@ def test_timeline_renders_mixed_iso_precision_and_offsets(monkeypatch, reverse):
         timeline.reverse()
     original = json.dumps(timeline)
     frontend = Path(__file__).resolve().parents[2] / 'product/frontend/app.py'
+    monkeypatch.syspath_prepend(str(frontend.parent))
     harness = f'''import runpy
 import streamlit as st
-st.session_state.nav = "Kiến thức & cấu hình"
+st.session_state.nav = "Phân tích"
 workspace = runpy.run_path({str(frontend)!r})
 workspace["timeline_view"]({{"timeline": st.session_state["test_timeline"]}})
 '''

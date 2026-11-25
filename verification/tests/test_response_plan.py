@@ -92,6 +92,17 @@ def test_invalid_ai_response_falls_back_without_losing_actions(monkeypatch, cont
     assert plan['steps'] and all('invented-id' not in step['evidence_ids'] for step in plan['steps'])
 
 
+def test_single_limitation_preserved_without_relaxing_evidence_validation(monkeypatch):
+    payload = json.loads(valid_plan())
+    payload["limitations"] = "Một giả thuyết cần xác minh."
+    fake_client(monkeypatch, json.dumps(payload))
+    plan = response_agent.propose_response(findings(), [], {}, ResponseTools(), "gemini")
+    assert plan["source"] == "ai" and plan["limitations"] == [payload["limitations"]]
+    payload["steps"][0]["evidence_ids"] = ["unseen"]
+    fake_client(monkeypatch, json.dumps(payload))
+    assert response_agent.propose_response(findings(), [], {}, ResponseTools(), "gemini")["source"] == "local_playbook"
+
+
 def test_provider_error_keeps_local_plan(monkeypatch):
     fake_client(monkeypatch, fail=True)
     plan = response_agent.propose_response(findings(), [], {}, ResponseTools(), 'gemini')

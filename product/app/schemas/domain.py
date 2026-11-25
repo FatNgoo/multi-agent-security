@@ -1,5 +1,5 @@
 from typing import Literal
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 Severity = Literal["unknown", "informational", "low", "medium", "high", "critical"]
 Confidence = Literal["low", "medium", "high"]
@@ -24,6 +24,15 @@ class ResponsePlan(BaseModel):
     summary: str = Field(min_length=1, max_length=1500)
     steps: list[ResponseStep] = Field(min_length=1, max_length=8)
     limitations: list[str] = Field(default_factory=list, max_length=8)
+
+
+    @field_validator("limitations", mode="before")
+    @classmethod
+    def one_limitation_as_list(cls, value):
+        # DeepSeek JSON mode sometimes emits a single sentence instead of a one-item list.
+        if isinstance(value, str) and value.strip():
+            return [value]
+        return value
 
 
 class AlertUpdate(BaseModel):

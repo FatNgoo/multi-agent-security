@@ -44,6 +44,25 @@ def _references(value):
     return set()
 
 
+def prioritized_events(events, context, role):
+    # Keep representatives of distinct findings and the cross-source join before the display cap.
+    anchors = []
+    for finding in context.get("findings", []) + context.get("persistence_findings", []):
+        ids = finding.get("evidence_ids", [])
+        anchors.extend(ids[:1] + ids[-1:])
+    for link in context.get("relationships", [])[:3]:
+        anchors.extend(link.get("evidence_ids", []))
+    by_id = {event["evidence_id"]: event for event in events}
+    ordered = {ref: by_id[ref] for ref in anchors if ref in by_id}
+    for event in events:
+        source = event.get("source", "")
+        if (role == "persistence" and source == "sysmon") or (role == "c2" and source.startswith("zeek")):
+            ordered.setdefault(event["evidence_id"], event)
+    for ref, event in by_id.items():
+        ordered.setdefault(ref, event)
+    return list(ordered.values())
+
+
 def interpret(role, tools, mode, context=None):
     if mode == "offline":
         return {"agent": role, "status": "offline", "assessment": None}
@@ -65,6 +84,8 @@ def interpret(role, tools, mode, context=None):
             "Use another tool only when needed; otherwise provide your final assessment immediately. "
             "Return ONLY a JSON object, no prose or Markdown, with text (string, under 2000 characters), "
             "evidence_ids (array of strings), limitations (array of strings, never a single string). "
+            "Describe the recorded operation, its strongest benign explanation and the next evidence needed. "
+            "A deleted file or registry value may reflect cleanup. A matching process and flow establishes an association only. "
             "Write the assessment and limitations in Vietnamese. "
             "Cite only evidence_ids received from tools. Your assessment is an analyst-review hypothesis.")},
         {"role": "user", "content": json.dumps({"scope": tools.request.model_dump(mode="json"), "role": role,
@@ -72,7 +93,7 @@ def interpret(role, tools, mode, context=None):
     ]
     seen = set()
     try:
-        payload = _compact(tools.run(role, "query_events"))
+        payload = _compact(prioritized_events(tools.run(role, "query_events"), context or {}, role))
         while isinstance(payload, list) and len(json.dumps(payload)) > 16000 and len(payload) > 1:
             payload = payload[:max(1, len(payload) // 2)]
         seen.update(_references(payload))

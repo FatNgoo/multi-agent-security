@@ -1,0 +1,3 @@
+{"ts":1791964800,"uid":"LABDNS0","id.orig_h":"192.0.2.10","id.orig_p":53000,"id.resp_h":"192.0.2.53","id.resp_p":53,"proto":"udp","query":"sync.example","qtype_name":"A","rcode_name":"NOERROR"}
+{"ts":1791964804,"uid":"LABDNS4","id.orig_h":"192.0.2.10","id.orig_p":53004,"id.resp_h":"192.0.2.53","id.resp_p":53,"proto":"udp","query":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.telemetry.example","qtype_name":"A","rcode_name":"NOERROR"}
+{"ts":1791964815,"uid":"LABDNS15","id.orig_h":"192.0.2.10","id.orig_p":53015,"id.resp_h":"192.0.2.53","id.resp_p":53,"proto":"udp","query":"status.example","qtype_name":"A","rcode_name":"NOERROR"}

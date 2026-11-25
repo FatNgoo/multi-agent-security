@@ -11,12 +11,14 @@ import pandas as pd
 import requests
 import streamlit as st
 
+import import_ui
+import overview_ui
+
 API_BASE_URL = os.getenv("API_BASE_URL", "http://localhost:8000").rstrip("/")
 SOURCES = ["sysmon", "zeek_conn", "zeek_dns", "zeek_http"]
-SOURCE_NAMES = dict(zip(SOURCES, ["Sysmon · Endpoint", "Zeek · Kết nối", "Zeek · DNS", "Zeek · HTTP"]))
+SOURCE_NAMES = overview_ui.SOURCE_NAMES
 SEVERITIES = ["critical", "high", "medium", "low", "informational", "unknown"]
 LEVELS = dict(zip(SEVERITIES, ["Nghiêm trọng", "Cao", "Trung bình", "Thấp", "Thông tin", "Chưa xác định"]))
-COLORS = dict(zip(SEVERITIES, ["#991B1B", "#DC2626", "#B77900", "#2563EB", "#15803D", "#64748B"]))
 STATUS = {"new": "Mới", "acknowledged": "Đã tiếp nhận", "investigating": "Đang xử lý", "closed": "Đã đóng",
           "queued": "Đang chờ", "running": "Đang điều tra", "completed": "Hoàn thành", "failed": "Thất bại",
           "cancelled": "Đã hủy", "cancel_requested": "Đang hủy", "pending": "Chưa thực hiện", "in_progress": "Đang thực hiện", "skipped": "Bỏ qua"}
@@ -24,8 +26,7 @@ STATUS.update({"unavailable": "Chưa hoàn tất", "llm_budget_exhausted": "Hế
                "iteration_limit": "Chưa đủ lượt xử lý", "insufficient_evidence": "Chưa đủ bằng chứng"})
 CONFIDENCE = {"high": "Cao", "medium": "Trung bình", "low": "Thấp"}
 PHASES = {"verify": "Xác minh", "preserve": "Bảo toàn bằng chứng", "contain": "Cô lập", "remediate": "Khắc phục", "recover": "Khôi phục", "monitor": "Giám sát"}
-PAGES = ["Tổng quan", "Datasets", "Điều tra", "Cảnh báo", "Lịch sử & báo cáo", "Kiến thức & cấu hình"]
-PAGE_LABELS = dict(zip(PAGES, ["Tổng quan", "Dữ liệu log", "Phân tích", "Cảnh báo", "Lịch sử", "Tra cứu & hệ thống"]))
+PAGES = ["Tổng quan", "Nhập log", "Phân tích", "Theo dõi"]
 FINDING_TITLES = {
     "run_key": "Có cấu hình tự chạy khi đăng nhập", "startup": "Có thay đổi trong thư mục khởi động",
     "scheduled_task": "Có dấu hiệu tạo tác vụ định kỳ", "service": "Có dấu hiệu cấu hình dịch vụ",
@@ -41,14 +42,13 @@ FINDING_NOTES = {
     "periodic_connection": "Các kết nối lặp lại theo chu kỳ. Đây cũng có thể là hoạt động cập nhật hoặc giám sát hợp lệ.",
     "long_dns_label": "Một truy vấn DNS có nhãn dài. Hình dạng tên miền chưa đủ để kết luận có dữ liệu bị gửi ra ngoài.",
 }
-DESCRIPTIONS = {
-    "Tổng quan": "Nhập log, phân tích và xem những dấu hiệu cần kiểm tra.",
-    "Datasets": "Nhập log, kiểm tra phạm vi dữ liệu và chuẩn bị cho cuộc điều tra.",
-    "Điều tra": "Chọn tệp log để bắt đầu. Có thể thu hẹp máy và thời gian khi cần.",
-    "Cảnh báo": "Ưu tiên theo mức nguy hiểm, ghi nhận đánh giá và theo dõi xử lý.",
-    "Lịch sử & báo cáo": "Mở lại cuộc điều tra, đối chiếu bằng chứng và xuất báo cáo.",
-    "Kiến thức & cấu hình": "Tra cứu kỹ thuật ATT&CK và kiểm tra kết nối của hệ thống.",
+WARNINGS = {
+    "Insufficient evidence: no records match the requested scope.": "Không có bản ghi khớp với phạm vi đã chọn.",
+    "Evidence coverage is partial: record limit reached. Narrow the time window or datasets.": "Đã chạm giới hạn bản ghi. Hãy thu hẹp thời gian hoặc chọn ít tệp hơn.",
+    "Relationship presentation reached its 500-link cap; narrow the investigation scope.": "Đã chạm giới hạn 500 liên kết. Hãy thu hẹp phạm vi.",
+    "Host scope has no explicit IP mapping. Zeek events cannot be attributed to this host.": "Thiếu ánh xạ máy và IP để đối chiếu log Zeek.",
 }
+
 
 st.set_page_config(page_title="Phân tích log | Persistence & C2", page_icon="◈", layout="wide")
 st.markdown(f"<style>{Path(__file__).with_name('style.css').read_text(encoding='utf-8')}</style>", unsafe_allow_html=True)
@@ -119,7 +119,7 @@ def navigate(page):
 
 def new_investigation():
     open_job(None)
-    navigate("Điều tra")
+    navigate("Phân tích")
 
 
 def open_job(identifier, navigate_to=None):
@@ -149,6 +149,8 @@ def chart_style(chart):
 
 def pagination(key, has_more):
     page_number = st.session_state.get(key, 0)
+    if not page_number and not has_more:
+        return
     left, middle, right = st.columns([1, 4, 1])
     if left.button("← Trước", key=f"{key}_prev", disabled=page_number == 0, width="stretch"):
         st.session_state[key] = page_number - 1
@@ -174,7 +176,7 @@ def job_panel():
     if state in {"queued", "running", "cancel_requested"}:
         with st.container(border=True):
             st.markdown(f"**◌ {STATUS.get(state, state)}** · {job.get('progress', '')}")
-            st.caption(f"Mã điều tra {identifier[:8]} · Tạo lúc {stamp(job.get('created_at'))} · Tự cập nhật mỗi 2 giây")
+            st.caption(f"Bắt đầu lúc {stamp(job.get('created_at'))}")
             if st.button("Hủy điều tra", key="cancel_active", disabled=state == "cancel_requested"):
                 api("POST", f"/api/v1/investigations/{identifier}/cancel")
                 st.rerun()
@@ -205,20 +207,18 @@ def event_table(events, key, height=310):
 def findings_view(result):
     findings = result.get("findings", [])
     if not findings:
-        empty("Chưa có dấu vết đạt điều kiện", "Kết quả này chỉ phản ánh phạm vi dữ liệu đã chọn; chưa đủ để kết luận hệ thống an toàn.")
+        st.caption("Chưa thấy dấu vết đạt ngưỡng trong các bản ghi đã phân tích.")
         return
-    left, right = st.columns([1, 2.1], gap="large")
-    with left:
-        section("Dấu vết phát hiện", "Chọn một dấu vết để xem lý do và bằng chứng.")
-        selected = st.radio("Chọn dấu vết", range(len(findings)),
-                            format_func=lambda i: f"{LEVELS.get(findings[i]['severity'])} · {FINDING_TITLES.get(findings[i]['rule_id'], findings[i]['title'])}",
-                            key=f"finding_{result['investigation_id']}", label_visibility="collapsed")
-        st.caption("Mức nguy hiểm phản ánh tác động; độ tin cậy phản ánh sức mạnh bằng chứng.")
-    item = findings[selected]
-    with right:
+    with st.expander("Xem dấu vết và bằng chứng"):
+        selected = 0
+        if len(findings) > 1:
+            selected = st.selectbox("Dấu vết", range(len(findings)),
+                                    format_func=lambda i: FINDING_TITLES.get(findings[i]["rule_id"], findings[i]["title"]),
+                                    key=f"finding_{result['investigation_id']}")
+        item = findings[selected]
         title = FINDING_TITLES.get(item["rule_id"], item["title"])
         note = FINDING_NOTES.get(item["rule_id"], item["severity_reason"])
-        st.markdown(f'<div class="finding-card">{badge(item["severity"])}<span class="meta-inline">Độ tin cậy: {esc(CONFIDENCE.get(item["confidence"], item["confidence"]))}</span><h3>{esc(title)}</h3><p>{esc(note)}</p></div>', unsafe_allow_html=True)
+        st.markdown(f'<div class="finding-card">{badge(item["severity"])}<span class="meta-inline">Độ tin cậy {esc(CONFIDENCE.get(item["confidence"], item["confidence"]))}</span><h3>{esc(title)}</h3><p>{esc(note)}</p></div>', unsafe_allow_html=True)
         with st.expander("Lý do đánh giá & thông tin kỹ thuật"):
             st.write(item["severity_reason"])
             st.caption(f"{item['agent']} · {item['rule_id']} · {item['classification']}")
@@ -245,7 +245,7 @@ def findings_view(result):
 
 
 def recommendations_view(result):
-    section("Biện pháp đề xuất", "Một bản hướng xử lý tổng hợp cho toàn bộ cuộc điều tra.")
+    section("Biện pháp đề xuất")
     plan = result.get("response_plan")
     if not plan:
         # Old investigations remain readable; never call a provider while rendering.
@@ -262,28 +262,32 @@ def recommendations_view(result):
         plan = {"source": "local_playbook", "status": "legacy", "steps": steps,
                 "summary": "Kết quả cũ chưa có bản tổng hợp AI. Dưới đây là các biện pháp đã lưu, được gộp để đọc một lần."}
     if plan.get("source") == "ai":
-        st.caption(f"AI đề xuất · {str(plan.get('provider', '')).title()} · Bản tổng hợp khi hoàn tất lượt phân tích")
+        st.caption(f"AI đề xuất · {str(plan.get('provider', '')).title()}")
     elif plan.get("status") == "offline":
-        st.caption("Playbook tổng hợp · Chế độ Offline không gọi AI")
+        st.caption("Hướng dẫn cục bộ · Chế độ Offline")
     elif plan.get("status") != "legacy":
         detail = plan.get("error_message") or plan.get("error") or "Chưa có nhận định AI đầy đủ."
         st.warning(f"{detail} Đang hiển thị playbook thay thế.")
     st.write(plan.get("summary", ""))
-    for index, step in enumerate(plan.get("steps", []), 1):
-        with st.container(border=True):
-            st.markdown(f"**{index}. {step['title']}**")
-            st.write(step["action"])
-            st.markdown("**Điều kiện áp dụng:** " + step.get("condition", ""))
-            st.markdown("**Kiểm tra kết quả:** " + step.get("verification", ""))
-            st.caption(f"{len(step.get('evidence_ids', []))} bằng chứng liên quan")
-    for line in plan.get("limitations", []):
-        st.caption(line)
-    st.caption("Đây là đề xuất xử lý. Hệ thống không tự thực thi các thay đổi trên máy hoặc mạng.")
+    steps = plan.get("steps", [])
+    for index, step in enumerate(steps, 1):
+        st.markdown(f'<div class="plan-step"><span>{index}</span><div><strong>{esc(step["title"])}</strong><p>{esc(step["action"])}</p><small>{esc(step.get("condition", ""))}</small></div></div>', unsafe_allow_html=True)
+    evidence = {e["evidence_id"]: e for e in result.get("evidence", [])}
+    if steps or plan.get("limitations"):
+        with st.expander("Kiểm tra kết quả và đối chiếu bằng chứng"):
+            for step in steps:
+                st.markdown(f"**{step['title']}**")
+                st.write(step.get("verification", ""))
+                for ref in dict.fromkeys(step.get("evidence_ids", [])):
+                    event = evidence.get(ref, {})
+                    st.caption(f"{SOURCE_NAMES.get(event.get('source'), 'Bằng chứng')} · {stamp(event.get('timestamp'), True)} · {ref}")
+            for line in plan.get("limitations", []):
+                st.caption(line)
 
 
-def timeline_view(result):
+def timeline_view(result, show_table=True):
     timeline = result.get("timeline", [])
-    section("Diễn biến theo thời gian", "Các mốc được hiển thị theo UTC. Di chuột lên biểu đồ để xem số sự kiện.")
+    section("Diễn biến theo nguồn log")
     if not timeline:
         empty("Chưa có sự kiện trong timeline", "Chọn thêm nguồn log hoặc mở rộng khoảng thời gian.")
         return
@@ -294,14 +298,18 @@ def timeline_view(result):
     frequency = "1min" if span < 7200 else "1h" if span < 172800 else "1D"
     counts = frame.groupby([pd.Grouper(key="timestamp", freq=frequency), "source"]).size().reset_index(name="Sự kiện")
     counts["UTC"] = counts["timestamp"].dt.strftime("%d/%m/%Y %H:%M")
-    chart = alt.Chart(counts).mark_bar(cornerRadiusTopLeft=3, cornerRadiusTopRight=3).encode(
-        x=alt.X("timestamp:T", title="Thời gian (UTC)", scale=alt.Scale(type="utc")), y=alt.Y("Sự kiện:Q", title="Số sự kiện", axis=alt.Axis(tickMinStep=1)),
-        color=alt.Color("source:N", title="Nguồn", scale=alt.Scale(domain=SOURCES, range=["#2563EB", "#147D64", "#B77900", "#7C3AED"])),
-        tooltip=["UTC:N", "source:N", "Sự kiện:Q"],
+    present = [source for source in SOURCES if source in set(counts["source"])]
+    counts["Nguồn"] = counts["source"].map(SOURCE_NAMES)
+    chart = alt.Chart(counts).mark_bar(size=14 if len(counts) <= 40 else 5, cornerRadiusTopLeft=2, cornerRadiusTopRight=2).encode(
+        x=alt.X("timestamp:T", title="Thời gian (UTC)", scale=alt.Scale(type="utc"),
+                axis=alt.Axis(tickCount=5, format="%H:%M" if span < 86400 else "%d/%m", labelOverlap=True)), y=alt.Y("Sự kiện:Q", title="Số sự kiện", axis=alt.Axis(tickMinStep=1)),
+        color=alt.Color("Nguồn:N", title=None, scale=alt.Scale(domain=[SOURCE_NAMES[key] for key in present], range=[SOURCE_COLORS[key] for key in present])),
+        tooltip=["UTC:N", "Nguồn:N", "Sự kiện:Q"],
     ).properties(height=225)
     st.altair_chart(chart_style(chart), width="stretch", theme=None)
     st.caption(f"Độ chia: {dict(zip(['1min', '1h', '1D'], ['1 phút', '1 giờ', '1 ngày']))[frequency]} · {len(timeline)} sự kiện trong kết quả trả về")
-    event_table(sorted(timeline, key=lambda e: parsed(e["timestamp"])), "timeline_events", 340)
+    if show_table:
+        event_table(sorted(timeline, key=lambda e: parsed(e["timestamp"])), "timeline_events", 340)
 
 
 def relationships_view(result):
@@ -412,36 +420,51 @@ def reports_view(result):
 def results_view(result):
     if not result:
         return
-    st.divider()
     scope = result.get("scope", {})
     severity = result.get("risk", {}).get("severity", "unknown")
-    st.markdown(f'<div class="result-heading"><div><div class="overline">KẾT QUẢ ĐIỀU TRA · {esc(result["investigation_id"][:8])}</div><h2>{esc(scope.get("host") or scope.get("ip") or "Phân tích phạm vi đã chọn")}</h2><div class="section-note">{esc(stamp(scope.get("start_time")))} → {esc(stamp(scope.get("end_time")))}</div></div>{badge(severity)}</div>', unsafe_allow_html=True)
-    st.caption(f"{len(result.get('dataset_ids', []))} tệp log · {STATUS.get(result.get('status'), result.get('status'))}")
-    kpis([("Mức nguy hiểm", LEVELS.get(severity, severity), "Đánh giá tổng hợp trong phạm vi", severity),
-          ("Dấu vết", len(result.get("findings", [])), f"{len(result.get('relationships', []))} liên kết bằng chứng", ""),
-          ("Bằng chứng", len(result.get("evidence", [])), f"{result.get('coverage', {}).get('matching_records', 0):,} bản ghi khớp phạm vi", "")])
-    with st.expander("Tóm tắt kết luận & giới hạn", expanded=bool(result.get("warnings"))):
-        st.write(result.get("summary", ""))
-        st.caption(result.get("risk", {}).get("reason", ""))
-        for warning in result.get("warnings", []):
-            st.warning(warning)
-    # Warnings remain visible even when the summary is collapsed.
-    if result.get("coverage", {}).get("truncated"):
-        st.warning("Chỉ một phần log được phân tích. Mở thông tin kỹ thuật để kiểm tra độ bao phủ.")
-    tabs = st.tabs(["Kết quả", "Diễn biến", "Bằng chứng", "Báo cáo"])
+    findings = result.get("findings", [])
+    evidence = result.get("evidence", [])
+    sources = {e["source"] for e in evidence}
+    host = scope.get("host") or scope.get("ip") or f"{len(result.get('dataset_ids') or [result.get('dataset_id')])} tệp log"
+    st.markdown(f'<div class="result-heading"><h2>{esc(host)}</h2><span>Mức ưu tiên {badge(severity)}</span></div>', unsafe_allow_html=True)
+    st.caption(f"{len(evidence)} bản ghi · {stamp(scope.get('start_time'), True)} → {stamp(scope.get('end_time'), True)} UTC")
+    for warning in result.get("warnings", []):
+        if warning != "OFFLINE: deterministic investigation; no LLM was called.":
+            st.warning(WARNINGS.get(warning, warning))
+    tabs = st.tabs(["Nhận định", "Bằng chứng", "Báo cáo"])
     with tabs[0]:
+        observations = []
+        for agent, title, has_source in [
+            ("persistence", "Duy trì truy cập", "sysmon" in sources),
+            ("c2", "Dấu hiệu C2", bool(sources.intersection(SOURCES[1:]))),
+        ]:
+            titles = dict.fromkeys(FINDING_TITLES.get(f["rule_id"], f["title"]) for f in findings if f.get("agent") == agent)
+            count = sum(f.get("agent") == agent for f in findings)
+            observations.append((title, f"{count} dấu vết" if has_source else "Thiếu log", " · ".join(titles) or ("Chưa thấy dấu hiệu" if has_source else "Trong phạm vi đã chọn")))
+        links = result.get("relationships", [])
+        matched = sum(link["type"] == "supported_correlation" for link in links)
+        hypotheses = sum(link["type"] == "hypothesis" for link in links)
+        link_text = " · ".join(filter(None, [f"{matched} liên kết có bằng chứng" if matched else "", f"{hypotheses} giả thuyết" if hypotheses else ""]))
+        observations.append(("Đối chiếu hai nguồn", f"{len(links)} liên kết", link_text or "Chưa tìm thấy liên kết"))
+        with st.container(key="observations"):
+            for col, (title, value, detail) in zip(st.columns(3), observations):
+                col.markdown(f'<div class="observation"><strong>{esc(title)}</strong><b>{esc(value)}</b><p>{esc(detail)}</p></div>', unsafe_allow_html=True)
+        if result.get("timeline"):
+            with st.container(border=True):
+                timeline_view(result, show_table=False)
         findings_view(result)
-        st.divider()
         recommendations_view(result)
     with tabs[1]:
-        timeline_view(result)
-        with st.expander("Xem liên kết giữa các nguồn log"):
-            relationships_view(result)
-    with tabs[2]:
         evidence_view(result)
+        with st.expander("Diễn biến theo thời gian"):
+            event_table(sorted(result.get("timeline", []), key=lambda e: parsed(e["timestamp"])), "timeline_events", 340)
+        with st.expander("Liên kết Sysmon và Zeek"):
+            relationships_view(result)
         with st.expander("Thông tin kỹ thuật & hoạt động AI"):
+            st.write(result.get("summary", ""))
+            st.caption(result.get("risk", {}).get("reason", ""))
             activity_view(result)
-    with tabs[3]:
+    with tabs[2]:
         reports_view(result)
 
 
@@ -456,87 +479,24 @@ def job_label(job):
     return f"{stamp(job.get('created_at'), True)} · {scope.get('host') or scope.get('ip') or 'Toàn phạm vi'} · {STATUS.get(job['status'], job['status'])} · {job['investigation_id'][:8]}"
 
 
-def dashboard():
+def metrics_view():
     metrics = api("GET", "/api/v1/metrics")
-    if not metrics:
-        return
-    alerts = api("GET", "/api/v1/alerts", params={"limit": 500}) or []
-    jobs = api("GET", "/api/v1/investigations", params={"limit": 200}) or []
-    active = sum(metrics["investigations"].get(state, 0) for state in ("running", "queued"))
-    kpis([("Tệp log đã nhập", f"{metrics['datasets']:,}", f"{metrics['events']:,} bản ghi", ""),
-          ("Cảnh báo mới", metrics["alerts"].get("new", 0), "Cần xem và xác minh", "high" if metrics["alerts"].get("new") else ""),
-          ("Đang phân tích", active, "Gồm cả các lượt đang chờ", "")])
-    section("Bắt đầu với 3 bước")
-    for col, number, title, note, label, action in zip(
-        st.columns(3), [1, 2, 3], ["Nhập log", "Phân tích", "Xem kết quả"],
-        ["Thêm tệp Sysmon hoặc Zeek.", "Chọn dữ liệu cần kiểm tra.", "Mở lại kết quả và tải báo cáo."],
-        ["Thêm tệp log", "Phân tích mới", "Mở lịch sử"], ["Datasets", "Điều tra", "Lịch sử & báo cáo"],
-    ):
-        with col, st.container(border=True):
-            st.markdown(f'<div class="workflow-step"><span class="step-number">{number}</span>{title}</div>', unsafe_allow_html=True)
-            st.caption(note)
-            if action == "Điều tra":
-                st.button(label, on_click=new_investigation, type="primary", key="dashboard_new", width="stretch")
-            else:
-                st.button(label, on_click=navigate, args=(action,), width="stretch")
-    left, right = st.columns([1.6, 1], gap="medium")
-    with left, st.container(border=True):
-        section("Cảnh báo cần xem")
-        pending = sorted([a for a in alerts if a["status"] != "closed"],
-                         key=lambda a: SEVERITIES.index(a["severity"]) if a["severity"] in SEVERITIES else 99)[:4]
-        if not pending:
-            empty("Chưa có cảnh báo cần xử lý", "Cảnh báo từ các lượt phân tích sẽ xuất hiện ở đây.", "✓")
-        for alert in pending:
-            one, two = st.columns([3, 1.3], vertical_alignment="center")
-            one.markdown(f'<div class="alert-row">{badge(alert["severity"])}<strong>Điều tra {esc(alert["investigation_id"][:8])}</strong><div class="chain-meta">{esc(STATUS.get(alert["status"]))} · {esc(stamp(alert.get("alert_created_at"), True))}</div></div>', unsafe_allow_html=True)
-            two.button("Xem", key=f"dash_{alert['alert_id']}", on_click=open_job, args=(alert["investigation_id"], "Lịch sử & báo cáo"), width="stretch")
-        st.caption("Tối đa 4 cảnh báo ưu tiên, từ 500 cảnh báo gần nhất.")
-    with right, st.container(border=True):
-        section("Mức độ cảnh báo")
-        levels = metrics.get("severity", {})
-        total = sum(levels.values())
-        if total:
-            for level in SEVERITIES:
-                count = levels.get(level, 0)
-                if count:
-                    st.markdown(f'<div class="severity-row"><div><span>{esc(LEVELS[level])}</span><strong>{count}</strong></div><div class="severity-track"><div style="width:{count / total * 100:.2f}%;background:{COLORS[level]}"></div></div></div>', unsafe_allow_html=True)
-            st.caption("Tất cả cảnh báo, gồm cả đã đóng.")
-        else:
-            st.caption("Chưa có dữ liệu để thống kê.")
-    section("Phân tích gần đây")
-    if jobs:
-        st.dataframe(job_rows(jobs[:5]), hide_index=True, width="stretch")
-        st.button("Xem toàn bộ lịch sử →", on_click=navigate, args=("Lịch sử & báo cáo",))
-    else:
-        empty("Chưa có kết quả", "Thêm tệp log và bắt đầu lượt phân tích đầu tiên.")
-    with st.expander("Hiệu năng hệ thống"):
+    if metrics:
+        kpis([("Tệp log", metrics["datasets"], f"{metrics['events']:,} bản ghi", ""),
+              ("Cảnh báo mới", metrics["alerts"].get("new", 0), "Chờ tiếp nhận", ""),
+              ("Đang phân tích", sum(metrics["investigations"].get(s, 0) for s in ("running", "queued")), "Gồm lượt đang chờ", "")])
         a, b = st.columns(2)
         a.metric("Tạo cảnh báo · p95", ms(metrics["detection_to_alert"].get("p95_ms")))
         b.metric("Thời gian phân tích · p95", ms(metrics["runtime"].get("p95_ms")))
-        st.caption(f"Độ trễ đo đến khi server tạo cảnh báo · {metrics['detection_to_alert']['samples']} mẫu. Không gồm thời gian hiển thị trên trình duyệt.")
+
+
+def analyze_import(ids):
+    new_investigation()
+    st.session_state.pending_selection = ids
 
 
 def datasets_page():
-    with st.expander("Thêm tệp log", expanded=True):
-        with st.form("upload", clear_on_submit=True):
-            left, right = st.columns([1, 2])
-            with left:
-                source = st.selectbox("Loại log", SOURCES, format_func=SOURCE_NAMES.get)
-                st.caption("Sysmon: XML / JSONL\n\nZeek: JSONL / TSV (conn, dns, http)\n\nMỗi tệp tương ứng một nguồn log.")
-            with right:
-                uploaded = st.file_uploader("Kéo thả tệp log vào đây", type=["jsonl", "json", "xml", "log", "tsv"])
-                submitted = st.form_submit_button("Nhập & kiểm tra dữ liệu", type="primary")
-        if submitted:
-            if not uploaded:
-                st.warning("Chọn một tệp log trước khi nhập.")
-            else:
-                with st.spinner("Đang nhập và kiểm tra log…"):
-                    result = api("POST", "/api/v1/logs/upload", data={"source_type": source}, files={"file": (uploaded.name, uploaded.getvalue())})
-                if result:
-                    st.success(f"Đã nhập {result['imported_records']:,} bản ghi từ {uploaded.name}.")
-                    with st.expander("Chi tiết kiểm tra tệp"):
-                        st.json(result)
-    section("Kho dữ liệu", "Kiểm tra nguồn log và khoảng thời gian trước khi điều tra.")
+    section("Tệp đã nhập")
     items = api("GET", "/api/v1/datasets", params={"limit": 101, "offset": st.session_state.get("datasets_page", 0) * 100}) or []
     left, right = st.columns([2, 1])
     query = left.text_input("Tìm dataset", placeholder="Tên tệp, host, IP…")
@@ -567,85 +527,115 @@ def scope_defaults(datasets):
     return start, end
 
 
-def investigation_page():
-    datasets = api("GET", "/api/v1/datasets?limit=1000") or []
-    if not datasets:
-        empty("Cần dữ liệu để bắt đầu", "Nhập log Sysmon hoặc Zeek vào kho dữ liệu, sau đó chọn phạm vi phân tích.")
-        st.button("Đến kho dữ liệu →", on_click=navigate, args=("Datasets",), type="primary")
-    else:
-        with st.expander("Thiết lập cuộc điều tra", expanded=not bool(st.session_state.get("active_job"))):
-            main, aside = st.columns([2.2, 1], gap="large")
-            with main:
-                section("1. Chọn tệp log")
-                lookup = {d["dataset_id"]: d for d in datasets}
-                selected = st.multiselect("Tệp log cần phân tích", list(lookup), format_func=lambda i: f"{lookup[i]['filename']} · {SOURCE_NAMES.get(lookup[i]['source'])}", max_selections=20, key="scope_datasets", placeholder="Chọn một hoặc nhiều tệp log…")
-                chosen = [lookup[i] for i in selected]
-                signature = tuple(sorted(selected))
-                if st.session_state.get("scope_signature") != signature or "start_date" not in st.session_state:
-                    start, end = scope_defaults(chosen or datasets)
-                    for key, value in {"start_date": start.date(), "start_clock": start.time().replace(tzinfo=None), "end_date": end.date(), "end_clock": end.time().replace(tzinfo=None)}.items():
-                        st.session_state[key] = value
-                    st.session_state.scope_signature = signature
-                with st.form("investigation"):
-                    with st.expander("Chọn máy & thời gian cụ thể (tùy chọn)"):
-                        a, b = st.columns(2)
-                        host = a.text_input("Host", placeholder="WIN-LAB-01", key="scope_host", max_chars=128)
-                        ip = b.text_input("IP của host", placeholder="192.0.2.10", key="scope_ip")
-                        mapping = st.checkbox("Xác nhận host và IP này thuộc cùng thiết bị trong thời gian đã chọn", value=False, key="scope_mapping", help="Ánh xạ đã xác minh giúp đối chiếu Sysmon với log mạng Zeek. Chỉ chọn khi bạn biết quan hệ host–IP này.")
-                        a, b, c, d = st.columns(4)
-                        start_date = a.date_input("Ngày bắt đầu · UTC", key="start_date")
-                        start_time = b.time_input("Giờ bắt đầu · UTC", key="start_clock", step=60)
-                        end_date = c.date_input("Ngày kết thúc · UTC", key="end_date")
-                        end_time = d.time_input("Giờ kết thúc · UTC", key="end_clock", step=60)
-                    section("2. Cách phân tích")
-                    mode = st.selectbox("Chế độ", ["offline", "gemini", "deepseek"], format_func=lambda m: {"offline": "Offline · Luật & thống kê", "gemini": "Gemini · AI hỗ trợ", "deepseek": "DeepSeek · AI hỗ trợ"}[m], key="scope_mode")
-                    with st.expander("Tùy chọn nâng cao"):
-                        strategy = st.selectbox("Chiến lược", ["multi_agent", "single_agent", "heuristic"], format_func=lambda m: {"multi_agent": "Multi-agent · Chuyên trách phối hợp", "single_agent": "Single-agent · Một agent", "heuristic": "Heuristic · Chỉ luật & thống kê"}[m], key="scope_strategy")
-                        criticality = st.selectbox("Mức quan trọng của tài sản", ["medium", "low", "high"], format_func=CONFIDENCE.get, key="scope_criticality")
-                        benign = st.text_input("IP đích đã biết hợp lệ", placeholder="Phân cách bằng dấu phẩy, ví dụ 192.0.2.20, 192.0.2.21", key="scope_benign")
-                        mappings = st.text_area("Ánh xạ host–IP bổ sung · JSON", value="[]", key="scope_extra_mappings", help="Danh sách đối tượng có host, ip, start_time, end_time (ISO 8601 có timezone). Dùng khi có nhiều thiết bị hoặc IP thay đổi theo thời gian.")
-                    submitted = st.form_submit_button("Bắt đầu điều tra", type="primary", width="stretch")
-            with aside:
-                with st.container(border=True):
-                    section("Dữ liệu sẽ phân tích")
-                    st.metric("Tệp log", len(selected))
-                    st.metric("Bản ghi trong các tệp", f"{sum(d['total_records'] for d in chosen):,}")
-                    st.caption("Mặc định lấy toàn bộ thời gian của các tệp đã chọn. Mở phần chọn máy và thời gian nếu cần thu hẹp.")
-                    st.divider()
-                    sources = list(dict.fromkeys(d["source"] for d in chosen))
-                    for source in sources:
-                        st.write(f"✓ {SOURCE_NAMES.get(source, source)}")
-                    if not sources:
-                        st.caption("Chưa chọn nguồn log.")
-                st.caption("Offline chạy bằng luật và thống kê. Chế độ AI sử dụng nhà cung cấp đã cấu hình và có thể phát sinh chi phí API.")
+SOURCE_COLORS = overview_ui.SOURCE_COLORS
 
-            if submitted:
-                try:
-                    start = datetime.combine(start_date, start_time, tzinfo=timezone.utc)
-                    end = datetime.combine(end_date, end_time, tzinfo=timezone.utc)
-                    if not selected:
-                        raise ValueError("Chọn ít nhất một dataset để điều tra.")
-                    if start > end:
-                        raise ValueError("Thời gian bắt đầu phải trước hoặc bằng thời gian kết thúc.")
-                    if ip.strip():
-                        ipaddress.ip_address(ip.strip())
-                    extra = json.loads(mappings)
-                    if not isinstance(extra, list):
-                        raise ValueError("Ánh xạ bổ sung cần là một danh sách JSON.")
-                    if mapping:
-                        if not host.strip() or not ip.strip():
-                            raise ValueError("Cần cả host và IP để xác nhận ánh xạ thiết bị.")
-                        extra.append({"host": host.strip(), "ip": ip.strip(), "start_time": start.isoformat(), "end_time": end.isoformat()})
-                    benign_ips = [str(ipaddress.ip_address(s.strip())) for s in benign.split(",") if s.strip()]
-                    payload = {"dataset_ids": selected, "host": host.strip() or None, "ip": ip.strip() or None, "start_time": start.isoformat(), "end_time": end.isoformat(), "mode": mode, "strategy": strategy, "asset_criticality": criticality, "host_mappings": extra, "benign_destinations": benign_ips}
-                    job = api("POST", "/api/v1/investigations", json=payload)
-                    if job:
-                        open_job(job["investigation_id"])
-                        st.rerun()
-                except ValueError as exc:
-                    st.error(f"Kiểm tra lại phạm vi: {exc}")
-    job_panel()
-    results_view(st.session_state.get("last_result"))
+
+def source_profile(datasets, title):
+    counts = {source: sum(d["total_records"] for d in datasets if d["source"] == source) for source in SOURCES}
+    total = sum(counts.values())
+    with st.container(border=True, key="source_profile"):
+        section(title)
+        st.metric("Bản ghi", f"{total:,}")
+        if total:
+            segments = "".join(f'<i style="width:{count / total * 100:.3f}%;background:{SOURCE_COLORS[source]}"></i>'
+                               for source, count in counts.items() if count)
+            st.markdown(f'<div class="source-bar" aria-hidden="true">{segments}</div>', unsafe_allow_html=True)
+        for source in SOURCES:
+            st.markdown(f'<div class="source-row"><span><i style="background:{SOURCE_COLORS[source]}"></i>{esc(SOURCE_NAMES[source])}</span><strong>{counts[source]:,}</strong></div>', unsafe_allow_html=True)
+
+
+def investigation_page():
+    if st.session_state.get("active_job"):
+        job_panel()
+        results_view(st.session_state.get("last_result"))
+        return
+    datasets = api("GET", "/api/v1/datasets?limit=1000")
+    if datasets is None:
+        return
+    chosen_ids = st.session_state.get("pending_selection") or st.session_state.get("scope_datasets", [])
+    missing = set(chosen_ids).difference(d["dataset_id"] for d in datasets)
+    if missing:
+        older = api("GET", "/api/v1/datasets", params={"ids": sorted(missing)})
+        if older is None:
+            return
+        datasets.extend(older)
+    form, profile = st.columns([1.85, 1], gap="large")
+    with form, st.container(border=True):
+        if not datasets:
+            section("Nhập log đầu tiên")
+            st.button("Chọn tệp từ máy", on_click=navigate, args=("Nhập log",), type="primary")
+        else:
+            section("Phạm vi phân tích")
+            scope_form(datasets)
+    selected = set(st.session_state.get("scope_datasets", []))
+    with profile:
+        if selected:
+            source_profile([d for d in datasets if d["dataset_id"] in selected], "Nguồn đã chọn")
+        else:
+            source_profile(datasets, "Nguồn có thể chọn")
+
+
+def scope_form(datasets):
+    lookup = {d["dataset_id"]: d for d in datasets}
+    pending = st.session_state.pop("pending_selection", None)
+    if pending:
+        st.session_state.scope_datasets = [i for i in pending if i in lookup]
+        if len(st.session_state.scope_datasets) < len(pending):
+            st.warning("Một số tệp đã chọn không còn trong kho log.")
+    selected = st.multiselect("Tệp log cần phân tích", list(lookup),
+                              format_func=lambda i: f"{lookup[i]['filename']} · {SOURCE_NAMES.get(lookup[i]['source'])} · {i[:8]}",
+                              max_selections=20, key="scope_datasets", placeholder="Chọn log Sysmon hoặc Zeek")
+    chosen = [lookup[i] for i in selected]
+    signature = tuple(sorted(selected))
+    if st.session_state.get("scope_signature") != signature or "start_date" not in st.session_state:
+        start, end = scope_defaults(chosen or datasets)
+        for key, value in {"start_date": start.date(), "start_clock": start.time().replace(tzinfo=None), "end_date": end.date(), "end_clock": end.time().replace(tzinfo=None)}.items():
+            st.session_state[key] = value
+        st.session_state.scope_signature = signature
+    with st.form("investigation", border=False):
+        mode = st.radio("Chế độ phân tích", ["offline", "gemini", "deepseek"],
+                        format_func=lambda m: {"offline": "Offline", "gemini": "Gemini", "deepseek": "DeepSeek"}[m],
+                        key="scope_mode", horizontal=True, help="Offline dùng luật và thống kê. Gemini và DeepSeek gửi dữ liệu liên quan đến nhà cung cấp AI đã chọn.")
+        with st.expander("Phạm vi và tùy chọn"):
+            a, b = st.columns(2)
+            host = a.text_input("Host", placeholder="WIN-LAB-01", key="scope_host", max_chars=128)
+            ip = b.text_input("IP của host", placeholder="192.0.2.10", key="scope_ip")
+            mapping = st.checkbox("Xác nhận host và IP này thuộc cùng thiết bị trong thời gian đã chọn", value=False, key="scope_mapping", help="Ánh xạ đã xác minh giúp đối chiếu Sysmon với log mạng Zeek. Chỉ chọn khi bạn biết quan hệ host–IP này.")
+            a, b, c, d = st.columns(4)
+            start_date = a.date_input("Ngày bắt đầu · UTC", key="start_date")
+            start_time = b.time_input("Giờ bắt đầu · UTC", key="start_clock", step=60)
+            end_date = c.date_input("Ngày kết thúc · UTC", key="end_date")
+            end_time = d.time_input("Giờ kết thúc · UTC", key="end_clock", step=60)
+            strategy = st.selectbox("Chiến lược", ["multi_agent", "single_agent", "heuristic"], format_func=lambda m: {"multi_agent": "Multi-agent · Chuyên trách phối hợp", "single_agent": "Single-agent · Một agent", "heuristic": "Heuristic · Chỉ luật & thống kê"}[m], key="scope_strategy")
+            criticality = st.selectbox("Mức quan trọng của tài sản", ["medium", "low", "high"], format_func=CONFIDENCE.get, key="scope_criticality")
+            benign = st.text_input("IP đích đã biết hợp lệ", placeholder="Phân cách bằng dấu phẩy, ví dụ 192.0.2.20, 192.0.2.21", key="scope_benign")
+            mappings = st.text_area("Ánh xạ host–IP bổ sung · JSON", value="[]", key="scope_extra_mappings", help="Danh sách đối tượng có host, ip, start_time, end_time (ISO 8601 có timezone). Dùng khi có nhiều thiết bị hoặc IP thay đổi theo thời gian.")
+        submitted = st.form_submit_button("Phân tích log", type="primary", disabled=not selected)
+    if submitted:
+        try:
+            start = datetime.combine(start_date, start_time, tzinfo=timezone.utc)
+            end = datetime.combine(end_date, end_time, tzinfo=timezone.utc)
+            if not selected:
+                raise ValueError("Chọn ít nhất một dataset để điều tra.")
+            if start > end:
+                raise ValueError("Thời gian bắt đầu phải trước hoặc bằng thời gian kết thúc.")
+            if ip.strip():
+                ipaddress.ip_address(ip.strip())
+            extra = json.loads(mappings)
+            if not isinstance(extra, list):
+                raise ValueError("Ánh xạ bổ sung cần là một danh sách JSON.")
+            if mapping:
+                if not host.strip() or not ip.strip():
+                    raise ValueError("Cần cả host và IP để xác nhận ánh xạ thiết bị.")
+                extra.append({"host": host.strip(), "ip": ip.strip(), "start_time": start.isoformat(), "end_time": end.isoformat()})
+            benign_ips = [str(ipaddress.ip_address(s.strip())) for s in benign.split(",") if s.strip()]
+            payload = {"dataset_ids": selected, "host": host.strip() or None, "ip": ip.strip() or None, "start_time": start.isoformat(), "end_time": end.isoformat(), "mode": mode, "strategy": strategy, "asset_criticality": criticality, "host_mappings": extra, "benign_destinations": benign_ips}
+            job = api("POST", "/api/v1/investigations", json=payload)
+            if job:
+                open_job(job["investigation_id"])
+                st.rerun()
+        except ValueError as exc:
+            st.error(f"Kiểm tra lại phạm vi: {exc}")
 
 
 def alerts_page():
@@ -679,7 +669,7 @@ def alerts_page():
         with right:
             section("Đối chiếu trước khi xử lý")
             st.caption(f"Phát hiện: {stamp(item.get('detected_at'))}\n\nTạo cảnh báo: {stamp(item.get('alert_created_at'))}")
-            st.button("Mở kết quả điều tra →", type="primary", on_click=open_job, args=(item["investigation_id"], "Lịch sử & báo cáo"), width="stretch")
+            st.button("Mở kết quả điều tra →", type="primary", on_click=open_job, args=(item["investigation_id"], "Phân tích"), width="stretch")
             with st.expander("Lịch sử trạng thái"):
                 if item.get("history"):
                     st.dataframe(item["history"], hide_index=True, width="stretch")
@@ -692,6 +682,9 @@ def alerts_page():
 
 def history_page():
     items = api("GET", "/api/v1/investigations", params={"limit": 51, "offset": st.session_state.get("history_page", 0) * 50}) or []
+    if not items and not st.session_state.get("history_page"):
+        st.info("Chưa có lượt phân tích nào.")
+        return
     a, b = st.columns([2, 1])
     query = a.text_input("Tìm cuộc điều tra", placeholder="Host, IP hoặc mã điều tra…")
     state = b.selectbox("Trạng thái điều tra", ["all", "completed", "running", "queued", "failed", "cancelled"], format_func=lambda s: "Tất cả trạng thái" if s == "all" else STATUS[s])
@@ -700,12 +693,10 @@ def history_page():
         st.dataframe(job_rows(jobs), hide_index=True, width="stretch")
         left, right = st.columns([3, 1], vertical_alignment="bottom")
         job = left.selectbox("Chọn cuộc điều tra", jobs, format_func=job_label)
-        right.button("Mở kết quả →", type="primary", on_click=open_job, args=(job["investigation_id"],), width="stretch")
+        right.button("Mở kết quả →", type="primary", on_click=open_job, args=(job["investigation_id"], "Phân tích"), width="stretch")
     else:
         empty("Không tìm thấy cuộc điều tra", "Thử thay đổi bộ lọc hoặc tạo một cuộc điều tra mới.", "◷")
     pagination("history_page", len(items) > 50)
-    job_panel()
-    results_view(st.session_state.get("last_result"))
 
 
 def knowledge_page(health):
@@ -737,35 +728,35 @@ def knowledge_page(health):
             st.json(health or {})
 
 
-health = api("GET", "/health", timeout=5)
-with st.sidebar:
-    st.markdown('<div class="brand"><div class="brand-mark">◈</div><div><strong>Phân tích log</strong><span>Sysmon & Zeek</span></div></div>', unsafe_allow_html=True)
-    page = st.radio("Điều hướng", PAGES, format_func=PAGE_LABELS.get, label_visibility="collapsed", key="nav")
-    st.divider()
-    ready = bool(health and health.get("status") == "healthy")
-    st.markdown(f'<div class="connection"><span class="connection-dot {"online" if ready else "offline"}"></span>{"API đang hoạt động" if ready else "API chưa sẵn sàng"}</div>', unsafe_allow_html=True)
-    if st.session_state.get("active_job"):
-        st.caption(f"Điều tra đang mở · {st.session_state.active_job[:8]}")
-    st.caption("Thời gian hiển thị theo UTC")
+with st.container(key="topbar"):
+    brand, menu = st.columns([1, 2.8], vertical_alignment="center")
+    brand.markdown('<div class="wordmark"><b>S<span>.</span></b><strong>Sysmon &amp; Zeek</strong></div>', unsafe_allow_html=True)
+    page = menu.radio("Không gian làm việc", PAGES, key="nav", horizontal=True, label_visibility="collapsed")
 
-header, actions = st.columns([3, 1.5], vertical_alignment="center")
-with header:
-    st.title(PAGE_LABELS[page])
-    st.caption(DESCRIPTIONS[page])
-with actions:
-    st.button("Phân tích mới", type="primary", width="stretch", on_click=new_investigation, key="header_new")
 if st.session_state.get("notice"):
     st.toast(st.session_state.pop("notice"), icon=":material/check_circle:")
-
 if page == "Tổng quan":
-    dashboard()
-elif page == "Datasets":
-    datasets_page()
-elif page == "Điều tra":
+    overview_ui.render(api, navigate, stamp)
+elif page == "Nhập log":
+    import_ui.render(api, analyze_import, stamp)
+elif page == "Phân tích":
+    if st.session_state.get("active_job"):
+        title, action = st.columns([3, 1], vertical_alignment="center")
+        title.title("Kết quả phân tích" if st.session_state.get("last_result") else "Tiến trình phân tích")
+        action.button("Phân tích mới", on_click=new_investigation, key="header_new")
+    else:
+        st.title("Phân tích Persistence & C2")
     investigation_page()
-elif page == "Cảnh báo":
-    alerts_page()
-elif page == "Lịch sử & báo cáo":
-    history_page()
 else:
-    knowledge_page(health)
+    view = st.selectbox("Nội dung", ["Lịch sử phân tích", "Cảnh báo", "Tệp đã nhập", "Thống kê", "Tra cứu ATT&CK"], key="monitor_view")
+    st.title(view)
+    if view == "Lịch sử phân tích":
+        history_page()
+    elif view == "Cảnh báo":
+        alerts_page()
+    elif view == "Tệp đã nhập":
+        datasets_page()
+    elif view == "Thống kê":
+        metrics_view()
+    else:
+        knowledge_page(api("GET", "/health", timeout=5))

@@ -1,0 +1,1 @@
+{"timestamp":"2026-10-14T08:00:00.000Z","host":"WIN-LAB-01","event_id":1,"description":"SYNTHETIC · Service inventory","process_guid":"{00000000-0000-4000-8000-000000000001}","image":"C:\\Windows\\System32\\sc.exe","command_line":"sc.exe query config"}
