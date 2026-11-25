@@ -268,6 +268,8 @@ Supervisor không phải LLM tự lập kế hoạch mở. Việc chia vai trò 
 - Dữ liệu field tùy chọn sai kiểu cũng có thể làm upload bị từ chối để bảo đảm atomicity.
 - XML dùng thời gian trong `System/TimeCreated`, giữ `EventData` thành cấu trúc raw.
 
+EVTX được giải mã trực tiếp trên backend. Với Windows JSON OTRF, hệ thống nhận diện provider theo từng dòng và đếm riêng các dòng chỉ có giờ địa phương thiếu múi giờ. Windows Event Log ngoài Sysmon và IIS/Apache access có thể dùng để tra bằng chứng. [Phạm vi và kết quả kiểm thử trên bộ log tải về](TESTCASE_WINDOWS.md).
+
 ### 10.2. Zeek
 
 - Nguồn: `zeek_conn`, `zeek_dns`, `zeek_http`.
@@ -457,7 +459,8 @@ Job được lưu trong DB, claim bằng cập nhật có điều kiện, có wo
 
 | Cấu hình mặc định hiện tại | Giá trị |
 |---|---:|
-| MAX_UPLOAD_BYTES | 5.000.000 byte/file |
+| MAX_UPLOAD_BYTES | 5.000.000 byte/file văn bản thông thường |
+| MAX_WINDOWS_UPLOAD_BYTES | 100 MiB/file EVTX, JSON OTRF |
 | MAX_RECORDS | 1000 |
 | MAX_TOOL_CALLS | 16 |
 | MAX_AGENT_ITERATIONS | 2 |

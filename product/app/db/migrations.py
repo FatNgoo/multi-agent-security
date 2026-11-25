@@ -12,7 +12,7 @@ def migrate(connection, metadata):
     ))
     additions = {
         "datasets": {"sha256": "VARCHAR(64)", "metadata_json": "JSON"},
-        "events": {"normalized": "JSON", "source_ip": "VARCHAR(45)",
+        "events": {"log_source": "VARCHAR(20)", "normalized": "JSON", "source_ip": "VARCHAR(45)",
                    "dest_ip": "VARCHAR(45)", "process_guid": "VARCHAR(128)"},
     }
     for table, columns in additions.items():

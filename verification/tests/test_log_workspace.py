@@ -1,6 +1,7 @@
 import hashlib
 import json
 from concurrent.futures import ThreadPoolExecutor
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 import pytest
@@ -10,6 +11,7 @@ from sqlalchemy.orm import sessionmaker
 
 from app import main
 from app.db.database import Base
+from app.db.models import Alert, Investigation
 
 SAMPLES = Path(__file__).resolve().parents[1] / "logs" / "samples"
 
@@ -92,3 +94,61 @@ def test_overview_window_uses_event_time_and_keeps_fractional_boundaries(client)
     assert view["sources"] == {"sysmon": 2}
     assert sum(b["count"] for b in view["bins"]) == 2
     assert client.get("/api/v1/overview", params={"source": "zeek_dns"}).json()["recent"] == []
+
+@pytest.mark.parametrize("content", [b"not an event log", b"ElfFile\x00" + bytes(4100)])
+def test_invalid_evtx_atomic(client, content):
+    for action in ("preview", "upload"):
+        response = client.post("/api/v1/logs/" + action, files={"file": ("bad.EVTX", content)})
+        assert response.status_code == 422
+    assert client.get("/api/v1/datasets").json() == []
+
+
+def test_real_evtx_record_and_duplicate(client):
+    sample = SAMPLES.parents[2] / "testcase/Persistence/evasion_persis_hidden_run_keyvalue_sysmon_13.evtx"
+    if not sample.exists():
+        pytest.skip("Downloaded EVTX corpus is optional")
+    data = sample.read_bytes()
+    args = {"files": {"file": ("renamed.evtx", data)}, "data": {"reuse_existing": True}}
+    preview = client.post("/api/v1/logs/preview", **args).json()
+    assert preview["records"] == 1 and preview["source"] == "sysmon"
+    assert client.post("/api/v1/logs/upload", **args).json()["imported_records"] == 1
+    assert client.post("/api/v1/logs/upload", **args).json()["imported_records"] == 0
+    row = client.get("/api/v1/overview").json()["recent"][0]
+    evidence = client.get("/api/v1/evidence/" + row["evidence_id"]).json()
+    assert evidence["event_id"] == 13 and evidence["raw"]["event_record_id"]
+    assert evidence["raw"]["channel"] == "Microsoft-Windows-Sysmon/Operational"
+    assert evidence["raw"]["event_data"] and "<EventRecordID>" in evidence["raw"]["xml"]
+
+
+def test_otrf_mixed_channels_timezone_and_atomic_failure(client):
+    common = {"EventID": 1, "Hostname": "LAB", "Channel": "Security", "SourceName": "Microsoft-Windows-Security-Auditing"}
+    rows = [{**common, "TimeCreated": "2020-10-19 10:46:42"},
+            {**common, "SourceName": "Microsoft-Windows-Sysmon", "Channel": "Microsoft-Windows-Sysmon/Operational",
+             "UtcTime": "2020-10-20 02:46:43", "RecordNumber": 55},
+            {**common, "@timestamp": "2020-10-20T02:46:44Z"}]
+    data = "\n".join(json.dumps(r) for r in rows)
+    files = {"file": ("mix.json", data)}
+    preview = client.post("/api/v1/logs/preview", files=files).json()
+    assert preview["records"] == 2 and preview["missing_timezone"] == 1
+    assert preview["source_counts"] == {"sysmon": 1, "windows_event": 1}
+    result = client.post("/api/v1/logs/upload", files=files)
+    assert result.status_code == 201
+    for src, line in [("sysmon", 2), ("windows_event", 3)]:
+        view = client.get("/api/v1/overview", params={"source": src}).json()
+        assert view["sources"] == {src: 1} and view["recent"][0]["record_index"] == line
+        evidence = client.get("/api/v1/evidence/" + view["recent"][0]["evidence_id"]).json()
+        assert evidence["raw"] == rows[line - 1]
+    invalid = client.post("/api/v1/logs/upload", files={"file": ("mix.json", data + "\n{")})
+    assert invalid.status_code == 422 and len(client.get("/api/v1/datasets").json()) == 1
+
+def test_metrics_uses_job_and_alert_times_with_binary_data_in_evidence(client):
+    start = datetime(2026, 1, 1, tzinfo=timezone.utc)
+    with main.SessionLocal.begin() as db:
+        db.add(Investigation(id="test", status="completed", request={}, config_snapshot={}, created_at=start, started_at=start,
+                             finished_at=start + timedelta(milliseconds=12.345), result={"evidence": [{"raw": "\x00"}]}))
+        db.flush()
+        db.add(Alert(id="alert", investigation_id="test", severity="high", confidence="high", status="new",
+                     detected_at=start, created_at=start + timedelta(milliseconds=2.5), detection_to_alert_ms=2.5))
+    metrics = client.get("/api/v1/metrics").json()
+    assert metrics["runtime"] == {"samples": 1, "p50_ms": 12.345, "p95_ms": 12.345}
+    assert metrics["detection_to_alert"] == {"samples": 1, "p50_ms": 2.5, "p95_ms": 2.5}

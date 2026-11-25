@@ -1,7 +1,5 @@
 import copy
-import hashlib
 import json
-import re
 import math
 from contextlib import asynccontextmanager
 from typing import Literal
@@ -9,15 +7,12 @@ from uuid import uuid4
 from fastapi import FastAPI, File, Form, HTTPException, Query, Response, UploadFile
 from fastapi.responses import PlainTextResponse
 from pydantic import AwareDatetime
-from sqlalchemy import select, func, text
+from sqlalchemy import select, func, text, insert
 from app.config import settings
 from app.common import configure_logging, iso, utcnow
-from app.ingestion.sysmon_parser import parse_jsonl
-from app.ingestion.sysmon_xml_parser import parse_sysmon_xml
-from app.ingestion.normalize import normalize_sysmon
-from app.ingestion.zeek_parser import identify_zeek_source, parse_zeek
+from app.ingestion.upload import LogImport
 from app.db.database import SessionLocal, init_db, engine
-from app.db.models import Dataset, Event, Investigation, Finding, Alert, AuditEntry
+from app.db.models import Dataset, Event, event_source, Investigation, Finding, Alert, AuditEntry
 from app.schemas.investigation import InvestigationRequest, InvestigationResponse
 from app.schemas.domain import AlertUpdate, ReviewUpdate
 from app.services.investigations import create_job, run_claimed_job, JobWorker
@@ -51,83 +46,28 @@ def health():
             "worker_enabled": settings.worker_enabled, "knowledge_version": CORPUS_VERSION}
 
 
-def detect_source(filename, data):
-    if filename.lower().endswith(".xml"):
-        return "sysmon"
-    text = data.decode("utf-8-sig", errors="replace").lstrip()
-    path = re.search(r"(?m)^#path\s+([^\s]+)", text)
-    if path:
-        return "zeek_" + path[1] if path[1] in {"conn", "dns", "http"} else None
-    try:
-        row = json.loads(next(iter(text.splitlines()), ""))
-    except ValueError:
-        return None
-    if not isinstance(row, dict):
-        return None
-    if {"timestamp", "host", "event_id"} <= row.keys():
-        return "sysmon"
-    if not {"ts", "uid", "id.orig_h", "id.resp_h"} <= row.keys():
-        return None
-    detected = identify_zeek_source(row)
-    return detected if detected in {"zeek_conn", "zeek_dns", "zeek_http"} else None
-
-
-async def read_log(file, source_type):
-    filename = file.filename or ""
-    data = await file.read(settings.max_upload_bytes + 1)
-    await file.close()
-    if len(data) > settings.max_upload_bytes:
-        raise HTTPException(413, "File too large")
-    if not filename.lower().endswith((".jsonl", ".json", ".xml", ".log", ".tsv")):
-        raise HTTPException(415, "Đuôi tệp chưa được hỗ trợ.")
-    detected = detect_source(filename, data)
-    if source_type == "auto":
-        if not detected:
-            raise HTTPException(422, "Chưa nhận diện được nguồn. Chọn đúng loại log hoặc kiểm tra định dạng tệp.")
-        source_type = detected
-    elif detected and detected != source_type:
-        raise HTTPException(422, f"Nội dung có dạng {detected}, khác nguồn đã chọn.")
-    allowed = (".jsonl", ".json", ".xml") if source_type == "sysmon" else (".jsonl", ".json", ".log", ".tsv")
-    if not filename.lower().endswith(allowed):
-        raise HTTPException(415, "Đuôi tệp chưa được hỗ trợ cho nguồn đã chọn.")
-    try:
-        if source_type == "sysmon":
-            rows = parse_sysmon_xml(data) if filename.lower().endswith(".xml") else parse_jsonl(data)
-            records = [(index, record.timestamp, record.host, record.event_id, record.description,
-                        normalize_sysmon(raw), raw) for index, record, raw in rows]
-        else:
-            rows = parse_zeek(data, source_type)
-            records = [(index, n["timestamp"], "", 0,
-                        f"{source_type}: {n['source_ip']}:{n['source_port']} -> {n['dest_ip']}:{n['dest_port']}",
-                        {key: value for key, value in n.items() if key != "timestamp"}, raw) for index, n, raw in rows]
-    except ValueError as exc:
-        raise HTTPException(422, str(exc)) from exc
-    sha256 = hashlib.sha256(data).hexdigest()
-    times = [r[1] for r in records]
-    metadata = {"start_time": iso(min(times)), "end_time": iso(max(times)),
-                "hosts": sorted({r[2] for r in records if r[2]}),
-                "ips": sorted({str(r[5][name]) for r in records for name in ("source_ip", "dest_ip") if r[5].get(name)}),
-                "error_count": 0, "duplicate_policy": "Matching SHA-256 and source may reuse a dataset when requested; duplicate_of links independent copies."}
-    return filename, source_type, records, sha256, metadata
-
-
-LogSource = Literal["auto", "sysmon", "zeek_conn", "zeek_dns", "zeek_http"]
+LogSource = Literal["auto", "sysmon", "zeek_conn", "zeek_dns", "zeek_http", "windows_event", "web_access"]
 
 
 @app.post("/api/v1/logs/preview")
-async def preview_log(file: UploadFile = File(...), source_type: LogSource = Form("auto")):
-    filename, source, records, sha256, meta = await read_log(file, source_type)
+def preview_log(file: UploadFile = File(...), source_type: LogSource = Form("auto")):
+    upload = LogImport(file, source_type)
+    source, count, meta = upload.summarize()
+    sha256 = upload.sha256
     with SessionLocal() as db:
         duplicate = db.scalar(select(Dataset.id).where(Dataset.sha256 == sha256, Dataset.source == source)
                               .order_by(Dataset.created_at, Dataset.id).limit(1))
-    return {"filename": filename, "source": source, "records": len(records), "sha256": sha256,
+    return {"filename": upload.filename, "source": source, "records": count, "sha256": sha256,
+            "source_counts": meta["source_counts"], "missing_timezone": meta["missing_timezone"],
             "start_time": meta["start_time"], "end_time": meta["end_time"], "duplicate_of": duplicate}
 
 
 @app.post("/api/v1/logs/upload", status_code=201)
-async def upload_log(file: UploadFile = File(...), source_type: LogSource = Form("sysmon"),
-                     reuse_existing: bool = Form(False)):
-    filename, source_type, records, sha256, metadata = await read_log(file, source_type)
+def upload_log(file: UploadFile = File(...), source_type: LogSource = Form("auto"),
+               reuse_existing: bool = Form(False)):
+    upload = LogImport(file, source_type)
+    source_type, count, metadata = upload.summarize()
+    filename, sha256 = upload.filename, upload.sha256
     identifier = str(uuid4())
     with SessionLocal.begin() as db:
         if reuse_existing:
@@ -141,16 +81,22 @@ async def upload_log(file: UploadFile = File(...), source_type: LogSource = Form
             return {"dataset_id": duplicate, "filename": filename, "source": source_type, "status": "reused",
                     "imported_records": 0, "sha256": sha256, "metadata": metadata}
         metadata["duplicate_of"] = duplicate
-        db.add(Dataset(id=identifier, filename=filename[:255], source=source_type, total_records=len(records),
+        db.add(Dataset(id=identifier, filename=filename[:255], source=source_type, total_records=count,
                        created_at=utcnow(), sha256=sha256, metadata_json=metadata))
         db.flush()
-        db.add_all([Event(id=str(uuid4()), dataset_id=identifier, record_index=index, timestamp=timestamp,
-                          host=host, event_id=event_id, description=description, raw=raw, normalized=normalized,
-                          source_ip=normalized.get("source_ip"), dest_ip=normalized.get("dest_ip"),
-                          process_guid=normalized.get("process_guid"))
-                    for index, timestamp, host, event_id, description, normalized, raw in records])
+        batch = []
+        for idx, ts, host, eid, description, normalized, raw, source in upload.rows():
+            batch.append(dict(id=str(uuid4()), dataset_id=identifier, record_index=idx, timestamp=ts,
+                              host=host, event_id=eid, description=description, raw=raw, normalized=normalized,
+                              log_source=source, source_ip=normalized.get("source_ip"), dest_ip=normalized.get("dest_ip"),
+                              process_guid=normalized.get("process_guid")))
+            if len(batch) == 250:
+                db.execute(insert(Event), batch)
+                batch.clear()
+        if batch:
+            db.execute(insert(Event), batch)
     return {"dataset_id": identifier, "filename": filename, "source": source_type,
-            "imported_records": len(records), "status": "completed", "sha256": sha256, "metadata": metadata}
+            "imported_records": count, "status": "completed", "sha256": sha256, "metadata": metadata}
 
 
 @app.get("/api/v1/datasets")
@@ -176,7 +122,7 @@ def events(response: Response, dataset_id: str, start_time: AwareDatetime, end_t
     with SessionLocal() as db:
         if db.get(Dataset, dataset_id) is None:
             raise HTTPException(404, "Dataset not found")
-        query = select(Event, Dataset.source).join(Dataset).where(*tools.conditions())
+        query = select(Event, event_source).join(Dataset).where(*tools.conditions())
         total = db.scalar(select(func.count()).select_from(query.subquery()))
         response.headers["X-Total-Count"] = str(total)
         response.headers["X-Has-More"] = str(offset + limit < total).lower()
@@ -187,7 +133,7 @@ def events(response: Response, dataset_id: str, start_time: AwareDatetime, end_t
 @app.get("/api/v1/evidence/{evidence_id}")
 def evidence(evidence_id: str):
     with SessionLocal() as db:
-        row = db.execute(select(Event, Dataset.source).join(Dataset).where(Event.id == evidence_id)).first()
+        row = db.execute(select(Event, event_source).join(Dataset).where(Event.id == evidence_id)).first()
         if row is None:
             raise HTTPException(404, "Evidence not found")
         return serialize_event(*row)
@@ -351,7 +297,7 @@ def knowledge(query: str = Query("persistence c2", max_length=200)):
 
 
 @app.get("/api/v1/overview")
-def dashboard_overview(source: Literal["all", "sysmon", "zeek_conn", "zeek_dns", "zeek_http"] = "all",
+def dashboard_overview(source: Literal["all", "sysmon", "zeek_conn", "zeek_dns", "zeek_http", "windows_event", "web_access"] = "all",
                        hours: int = Query(0, ge=0, le=8760)):
     with SessionLocal() as db:
         return overview(db, source, hours)
@@ -360,11 +306,14 @@ def dashboard_overview(source: Literal["all", "sysmon", "zeek_conn", "zeek_dns",
 @app.get("/api/v1/metrics")
 def metrics():
     with SessionLocal() as db:
-        timings = db.scalars(select(Investigation.result["timings"])
+        # Read scalar columns. PostgreSQL JSON traversal can fail on raw evidence containing NUL.
+        timings = db.execute(select(Investigation.started_at, Investigation.finished_at, Alert.detection_to_alert_ms)
+                             .outerjoin(Alert, Alert.investigation_id == Investigation.id)
                              .where(Investigation.status == "completed")
-                             .order_by(Investigation.finished_at.desc()).limit(1000)).all()
-        latency = sorted(t["detection_to_alert_ms"] for t in timings if t and t.get("detection_to_alert_ms") is not None)
-        runtime = sorted(t["total_ms"] for t in timings if t and t.get("total_ms") is not None)
+                             .order_by(Investigation.finished_at.desc(), Investigation.id).limit(1000)).all()
+        latency = sorted(round(ms, 3) for _, _, ms in timings if ms is not None)
+        runtime = sorted(round((end - start).total_seconds() * 1000, 3) for start, end, _ in timings
+                         if start is not None and end is not None)
 
         def distribution(values):
             return {"samples": len(values), "p50_ms": values[math.ceil(len(values) * 0.5) - 1] if values else None,

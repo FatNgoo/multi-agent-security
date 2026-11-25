@@ -11,11 +11,11 @@ def render(api, analyze, stamp):
     with st.container(border=True):
         revision = st.session_state.get("import_revision", 0)
         files = st.file_uploader("Chọn log từ máy", accept_multiple_files=True,
-                                 type=["xml", "jsonl", "json", "log", "tsv"], key=f"files_{revision}",
-                                 help="Sysmon XML hoặc JSON Lines. Zeek conn, dns, http ở dạng ASCII có header hoặc JSON Lines.")
-        st.caption("Sysmon XML, Zeek .log hoặc JSON Lines · Tối đa 20 tệp mỗi lượt")
-        if len(files) > 20:
-            st.warning("Chọn tối đa 20 tệp cho một lượt nhập.")
+                                 type=["evtx", "xml", "jsonl", "json", "log", "tsv", "txt"], key=f"files_{revision}",
+                                 help="Windows EVTX, JSON OTRF, Sysmon XML/JSONL, Zeek hoặc web access IIS/Apache.")
+        st.caption("EVTX và JSON OTRF tối đa 100 MiB theo mặc định · Chọn tối đa 50 tệp mỗi lượt")
+        if len(files) > 50:
+            st.warning("Chọn tối đa 50 tệp cho một lượt nhập.")
         elif files:
             preview_batch(files, api, stamp)
     receipt = st.session_state.get("import_receipt")
@@ -26,10 +26,14 @@ def render(api, analyze, stamp):
                            "Trạng thái": "Dùng lại bản đã lưu" if r["status"] == "reused" else "Đã lưu",
                            "Bản ghi thêm": r["imported_records"]} for r in receipt], hide_index=True, width="stretch")
             ids = list(dict.fromkeys(r["dataset_id"] for r in receipt))
-            st.button("Phân tích các tệp đã lưu", on_click=analyze, args=(ids,), type="primary")
+            if len(ids) > 20:
+                labels = {r["dataset_id"]: r["filename"] for r in receipt}
+                ids = st.multiselect("Chọn tối đa 20 tệp cho một lần phân tích", ids,
+                                     format_func=labels.get, max_selections=20)
+            st.button("Phân tích các tệp đã lưu", on_click=analyze, args=(ids,), disabled=not ids, type="primary")
     with st.expander("Lấy log trên máy thật và đối chiếu"):
         st.markdown("""
-**Windows Sysmon.** Giữ bản EVTX của kênh `Microsoft-Windows-Sysmon/Operational`. Xuất các sự kiện trong cùng khoảng UTC thành XML bằng `Get-WinEvent` và `ToXml()`, rồi nhập XML. Đối chiếu tên máy, `Channel`, `EventRecordID` và thời điểm.
+**Windows.** Chọn trực tiếp tệp EVTX trong `testcase/Persistence` hoặc `testcase/Command and Control`, hoặc JSON OTRF ở `testcase/`. Sysmon và các kênh Windows khác được nhận theo nội dung. Đối chiếu tên máy, `Channel`, `EventRecordID` và thời điểm.
 
 **Zeek.** Giữ PCAP và nhập `conn.log`, `dns.log` hoặc `http.log` đã đọc từ PCAP đó. Đối chiếu `uid`, hai đầu IP/cổng và thời điểm. Giữ các dòng header nếu tệp dùng định dạng ASCII.
 
@@ -53,7 +57,7 @@ def preview_batch(files, api, stamp):
         preview = old_cache.get(key)
         if not preview:
             preview = api("POST", "/api/v1/logs/preview", data={"source_type": source},
-                          files={"file": (file.name, file.getvalue())}, timeout=45)
+                          files={"file": (file.name, file.getvalue())}, timeout=120)
         if not preview:
             st.caption(f"Tệp cần kiểm tra: {file.name}")
             continue
@@ -62,7 +66,11 @@ def preview_batch(files, api, stamp):
         reuse = bool(preview["duplicate_of"]) or identity in seen
         seen.add(identity)
         valid.append((file, preview))
-        rows.append({"Tệp": file.name, "Nguồn": SOURCE_NAMES[preview["source"]], "Bản ghi": preview["records"],
+        if preview.get("missing_timezone"):
+            st.warning(f"{file.name} · {preview['missing_timezone']} dòng chỉ có giờ địa phương thiếu múi giờ. Các dòng này được bỏ qua.")
+        counts = preview.get("source_counts", {})
+        display_source = " + ".join(f"{SOURCE_NAMES[k]} ({n:,})" for k, n in counts.items()) if len(counts) > 1 else SOURCE_NAMES[preview["source"]]
+        rows.append({"Tệp": file.name, "Nguồn": display_source, "Bản ghi": preview["records"],
                      "Khi lưu": "Dùng lại" if reuse else "Thêm mới", "Bắt đầu UTC": preview["start_time"],
                      "Kết thúc UTC": preview["end_time"], "SHA-256": digest})
     st.session_state.import_previews = cache
@@ -77,7 +85,7 @@ def preview_batch(files, api, stamp):
         saved = []
         for file, preview in valid:
             row = api("POST", "/api/v1/logs/upload", data={"source_type": preview["source"], "reuse_existing": "true"},
-                      files={"file": (file.name, file.getvalue())}, timeout=60)
+                      files={"file": (file.name, file.getvalue())}, timeout=240)
             if row:
                 saved.append(row)
             else:

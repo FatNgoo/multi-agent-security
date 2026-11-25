@@ -15,6 +15,7 @@ class Settings(BaseSettings):
     deepseek_base_url: str = "https://api.deepseek.com"
     database_url: str = "sqlite:///./local-dev.db"
     max_upload_bytes: int = 5_000_000
+    max_windows_upload_bytes: int = Field(default=100 * 1024 * 1024, gt=0)
     max_records: int = Field(default=1000, ge=10, le=20000)
     max_tool_calls: int = Field(default=16, ge=3, le=100)
     max_agent_iterations: int = Field(default=2, ge=1, le=8)

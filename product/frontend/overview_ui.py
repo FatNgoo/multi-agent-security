@@ -9,8 +9,9 @@ import streamlit as st
 
 
 SOURCE_NAMES = {"sysmon": "Sysmon · Endpoint", "zeek_conn": "Zeek · Kết nối",
-                "zeek_dns": "Zeek · DNS", "zeek_http": "Zeek · HTTP"}
-SOURCE_COLORS = {"sysmon": "#1474b8", "zeek_conn": "#008c83", "zeek_dns": "#8055ae", "zeek_http": "#b57516"}
+                "zeek_dns": "Zeek · DNS", "zeek_http": "Zeek · HTTP", "windows_event": "Windows Event Log", "web_access": "Web access"}
+SOURCE_COLORS = {"sysmon": "#1474b8", "zeek_conn": "#008c83", "zeek_dns": "#8055ae", "zeek_http": "#b57516",
+                 "windows_event": "#546b83", "web_access": "#9c4978"}
 EVENT_NAMES = {1: "Tạo tiến trình", 3: "Kết nối mạng", 11: "Tạo tệp", 12: "Tạo hoặc xóa khóa",
                13: "Ghi giá trị registry", 14: "Đổi tên registry", 22: "Truy vấn DNS"}
 LEVELS = [("critical", "Nghiêm trọng", "#bd3945"), ("high", "Cao", "#b76104"),
@@ -20,6 +21,8 @@ LEVELS = [("critical", "Nghiêm trọng", "#bd3945"), ("high", "Cao", "#b76104")
 def kind(source, event_id):
     if source == "sysmon":
         return f'ID {event_id} · {EVENT_NAMES.get(event_id, "Sysmon")}'
+    if source == "windows_event":
+        return f"Windows · ID {event_id}"
     return SOURCE_NAMES[source]
 
 

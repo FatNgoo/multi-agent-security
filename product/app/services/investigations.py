@@ -85,6 +85,8 @@ def run_claimed_job(identifier, owner):
         warnings = []
         if mode == "offline":
             warnings.append("OFFLINE: deterministic investigation; no LLM was called.")
+        if state["route"] == "evidence_only":
+            warnings.append("Nguồn này dùng để tra bằng chứng. Các luật Persistence/C2 hiện áp dụng cho Sysmon và Zeek.")
         if not events:
             warnings.append("Insufficient evidence: no records match the requested scope.")
         if tools.coverage["truncated"]:

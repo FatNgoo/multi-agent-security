@@ -8,7 +8,8 @@ def run_supervisor(state: InvestigationState) -> dict:
     # Keep one provider call for the final response advisor within the existing total budget.
     tools.reserved_llm_calls = 1 if state["mode"] != "offline" else 0
     sources = {event["source"] for event in events}
-    route = "persistence" if sources <= {"sysmon"} else "persistence+c2+correlation"
+    route = "persistence+c2+correlation" if any(s.startswith("zeek") for s in sources) else (
+        "persistence" if "sysmon" in sources else "evidence_only")
     if not sources:
         route = "insufficient_evidence"
     plan = []

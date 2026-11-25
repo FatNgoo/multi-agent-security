@@ -4,7 +4,7 @@ Bạn có thể thử với một yêu cầu HTTP từ máy Windows đến một
 
 | Nơi thu | Bản giữ để kiểm chứng | Tệp nhập vào ứng dụng | Dấu vết cần tìm |
 |---|---|---|---|
-| Windows có Sysmon | `sysmon-original.evtx` | `sysmon-001.xml` và các phần tiếp theo | Tên máy, kênh, EventRecordID, thời điểm, Event ID 3, tiến trình và hai đầu kết nối |
+| Windows có Sysmon | `sysmon-original.evtx` | EVTX gốc hoặc các phần XML đã lọc | Tên máy, kênh, EventRecordID, thời điểm, Event ID 3, tiến trình và hai đầu kết nối |
 | Card mạng của máy Linux nhận HTTP | `traffic.pcap` | Zeek `conn.log`, có thể thêm `http.log` | Thời điểm bắt đầu, uid, IP/cổng hai đầu, giao thức. HTTP còn có method và URI |
 | Ứng dụng | SHA-256 của từng tệp đầu vào | Bản ghi đã phân tích cú pháp trong database | Tên tệp, vị trí, thời gian UTC, trường gốc và evidence ID |
 
@@ -92,11 +92,11 @@ Trong cơ sở dữ liệu kiểm thử riêng, dòng đầu của ví dụ `con
 
 ## 4. Đối chiếu với sản phẩm
 
-1. Chép XML và các log Zeek sang máy chạy sản phẩm. Mở **Nhập log**, chọn nhiều tệp cùng lúc. Kiểm số dòng, khoảng UTC, SHA-256 và nguồn ở bảng **Xem trước**. Với Zeek ASCII, giữ nguyên header `#path`, `#fields`, `#types`.
+1. Chép EVTX (hoặc các phần XML đã lọc) và các log Zeek sang máy chạy sản phẩm. Mở **Nhập log**, chọn nhiều tệp cùng lúc. Kiểm số dòng, khoảng UTC, SHA-256 và nguồn ở bảng **Xem trước**. Với Zeek ASCII, giữ nguyên header `#path`, `#fields`, `#types`.
 2. So SHA-256 hiển thị với `Get-FileHash` hoặc `sha256sum` của **chính tệp sẽ nhập**. XML, EVTX, PCAP và conn.log mỗi tệp có hash riêng. Chọn **Lưu**. Với cùng nội dung byte và nguồn, giao diện dùng lại dataset đã có.
 3. Mở **Tổng quan**. Chọn nguồn và khoảng thời gian. “24 giờ cuối” tính từ sự kiện mới nhất của nguồn đã chọn, kể cả khi bạn mở lại log cũ. Tổng trên biểu đồ vòng bằng tổng các cột thời gian trong phạm vi. Các mức cảnh báo tính trên các lượt phân tích đã lưu.
-4. Trong **Sự kiện gần nhất**, mở **Đối chiếu bản ghi gốc**. Với XML, “Vị trí” đếm phần tử Event từ 1. Với Zeek và JSONL, đó là số dòng vật lý từ 1, gồm cả header trước dòng dữ liệu. Bảng này hiển thị 12 sự kiện mới nhất. Nếu sự kiện nằm sâu hơn, chọn đúng tệp, giới hạn thời gian trong **Phân tích**, rồi xem tab **Bằng chứng**.
-5. Với Sysmon, lấy `computer`, `channel` và `event_record_id` trong trường gốc của bản nhập XML mới. Kiểm lại Record ID trong EVTX bằng lệnh dưới. Nếu tệp XML gốc thiếu các trường này hoặc bản nhập có từ trước khi giao diện được cập nhật, tra theo thời điểm, tên máy, Event ID và các trường EventData.
+4. Trong **Sự kiện gần nhất**, mở **Đối chiếu bản ghi gốc**. Với XML và EVTX, “Vị trí” đếm sự kiện từ 1. EventRecordID gốc nằm trong trường chi tiết. Với Zeek và JSONL, đó là số dòng vật lý từ 1, gồm cả header trước dòng dữ liệu. Bảng này hiển thị 12 sự kiện mới nhất. Nếu sự kiện nằm sâu hơn, chọn đúng tệp, giới hạn thời gian trong **Phân tích**, rồi xem tab **Bằng chứng**.
+5. Với Sysmon, lấy `computer`, `channel` và `event_record_id` trong trường gốc khi nhập EVTX hoặc XML mới. Kiểm lại Record ID trong EVTX bằng lệnh dưới. Nếu tệp XML gốc thiếu các trường này hoặc bản nhập có từ trước khi giao diện được cập nhật, tra theo thời điểm, tên máy, Event ID và các trường EventData.
 
 ```powershell
 $record = Read-Host 'EventRecordID lấy từ giao diện'

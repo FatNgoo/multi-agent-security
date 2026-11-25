@@ -20,9 +20,7 @@ Sau một lượt hoàn chỉnh, bạn có thể đối chiếu bốn nguồn đ
 3. PCAP và Zeek: kết nối thực sự đi qua mạng, IP/cổng/thời điểm và HTTP request.
 4. Hệ thống: dataset, finding, evidence, liên kết, severity và báo cáo phân tích.
 
-PCAP, EVTX và metadata được giữ nguyên để kiểm chứng lại. XML và Zeek JSON là đầu vào
-ứng dụng. Không thay EVTX bằng JSON xuất tùy ý từ Event Viewer: backend có parser XML
-Sysmon riêng, còn JSON Sysmon của ứng dụng dùng một schema khác.
+Giữ PCAP, EVTX và metadata để kiểm chứng lại. Chọn EVTX hoặc XML cho cùng một lần xuất Sysmon để tránh đếm lặp. Với mạng, nhập log Zeek trích từ PCAP.
 
 ## 2. Bố trí máy và mạng
 
@@ -373,8 +371,7 @@ bằng chia dòng tùy ý: phải giữ `<Events> ... </Events>` hợp lệ cho 
 `WIN-LAB-01.lab.local`; đây mới là tên dùng trong bộ lọc điều tra. `host_hint` trong
 manifest chỉ là gợi ý, không thay thế tên trong log.
 
-EVTX dùng để lưu trữ/đọc lại bằng Event Viewer. **Không upload EVTX vào ứng dụng hiện
-tại**; chọn `sysmon-001.xml`, `sysmon-002.xml`... và source `sysmon`.
+Có thể chọn trực tiếp `sysmon-original.evtx` trong **Nhập log**. Nếu chỉ cần các Event ID đã lọc, chọn các phần `sysmon-*.xml`.
 Nguồn lệnh: [Get-WinEvent](https://learn.microsoft.com/en-us/powershell/module/microsoft.powershell.diagnostics/get-winevent)
 và [wevtutil export-log](https://learn.microsoft.com/en-us/windows-server/administration/windows-commands/wevtutil).
 
@@ -454,12 +451,12 @@ Vào **Nhập log**, chọn các tệp, đối chiếu nguồn và SHA-256 trong
 
 | File | Source |
 |---|---|
-| `sysmon/sysmon-*.xml` | `sysmon` |
+| `sysmon/sysmon-original.evtx` hoặc `sysmon/sysmon-*.xml` | `sysmon` |
 | `zeek/conn.log` hoặc các phần `conn-*.log` | `zeek_conn` |
 | `zeek/http.log` | `zeek_http` |
 | `zeek/dns.log`, nếu thực sự có | `zeek_dns` |
 
-Không upload `traffic.pcap`, EVTX, `scenario.json` hoặc `collection.json` như log đầu
+Không upload `traffic.pcap`, `scenario.json` hoặc `collection.json` như log đầu
 vào. Lưu dataset UUID trả về hoặc chụp lại metadata. Không chọn dataset demo cũ cho ca
 này. Giao diện dùng lại dataset nếu tệp có cùng SHA-256 và nguồn. Hãy chọn một bản nếu nhiều tệp khác hash chứa cùng sự kiện.
 
@@ -655,7 +652,7 @@ report chỉ là kết quả suy luận, không thay được dữ liệu nguồ
 | HTTP có nhưng không có periodic | count, CV, nhóm IP/cổng/protocol | Đối chiếu mặc định ≥6/CV≤0,15, không chỉ nhìn GET |
 | Không có tương quan mạnh | GUID, 5-tuple, clock≤2s, dataset scope | Đối chiếu raw từng nguồn; ghi giới hạn nếu không khớp |
 | Chỉ có liên kết hypothesis | Không có Event 3 hoặc tuple lệch, mapping/time | Không tự nâng nó thành bằng chứng mạnh |
-| Upload bị từ chối | Source, UTF-8, XML root, file >5 MB | Validate rồi chia file đúng định dạng |
+| Upload bị từ chối | Source, UTF-8, XML root, giới hạn riêng theo định dạng | Validate rồi chia file đúng định dạng |
 | Zero evidence | Host FQDN, time UTC, UUID, filter IP | Lấy tên/thời gian từ log, bỏ filter lần lượt để chẩn đoán |
 | Findings khác kỳ vọng | Noise, truncation, ca trước còn lẫn | Tách ca/dataset, đọc warnings và raw evidence |
 | LLM lỗi dù offline tốt | API key, quota, model, timeout | Xem assessment; không coi offline fallback là provider pass |

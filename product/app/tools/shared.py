@@ -8,7 +8,7 @@ from app.config import settings
 from app.common import iso
 from app.ingestion.normalize import normalize_sysmon
 from app.db.database import SessionLocal
-from app.db.models import Dataset, Event
+from app.db.models import Dataset, Event, event_source
 
 logger = logging.getLogger(__name__)
 
@@ -69,7 +69,7 @@ class SharedTools:
     def _dispatch(self, tool, **arguments):
         if tool == "query_events":
             source = arguments.get("source", "all")
-            if source not in {"all", "sysmon", "zeek_conn", "zeek_dns", "zeek_http"}:
+            if source not in {"all", "sysmon", "zeek_conn", "zeek_dns", "zeek_http", "windows_event", "web_access"}:
                 raise ValueError("Unsupported source filter")
             return [event for event in self.events() if source == "all" or event["source"] == source]
         if tool == "beacon_statistics":
@@ -95,7 +95,7 @@ class SharedTools:
                   Event.timestamp >= request.start_time, Event.timestamp <= request.end_time]
         targets = []
         if request.host:
-            targets.append(and_(Dataset.source == "sysmon", Event.host == request.host))
+            targets.append(and_(event_source.in_(("sysmon", "windows_event")), Event.host == request.host))
             for mapping in request.host_mappings:
                 if mapping.host == request.host:
                     targets.append(and_(Event.timestamp >= mapping.start_time, Event.timestamp <= mapping.end_time,
@@ -104,7 +104,7 @@ class SharedTools:
             ip_filter = or_(Event.source_ip == str(request.ip), Event.dest_ip == str(request.ip))
             if targets:
                 # Host+IP is an intersection for mapped network records; host process records remain relevant.
-                targets = [and_(or_(*targets), or_(Dataset.source == "sysmon", ip_filter))]
+                targets = [and_(or_(*targets), or_(event_source.in_(("sysmon", "windows_event")), ip_filter))]
             else:
                 targets.append(ip_filter)
         if targets:
@@ -116,14 +116,14 @@ class SharedTools:
             return self.cache
         self.checkpoint()
         with SessionLocal() as db:
-            base = select(Event, Dataset.source).join(Dataset).where(*self.conditions())
+            base = select(Event, event_source).join(Dataset).where(*self.conditions())
             total = db.scalar(select(func.count()).select_from(base.subquery()))
             # Cap each source independently so a large endpoint dataset cannot hide network evidence.
             rows = []
-            sources = db.scalars(select(Dataset.source).where(Dataset.id.in_(self.request.dataset_ids)).distinct()).all()
+            sources = db.scalars(select(event_source).select_from(Event).join(Dataset).where(*self.conditions()).distinct()).all()
             per_source = max(1, settings.max_records // max(1, len(sources)))
             for source in sources:
-                rows.extend(db.execute(base.where(Dataset.source == source)
+                rows.extend(db.execute(base.where(event_source == source)
                             .order_by(Event.timestamp, Event.id).limit(per_source)).all())
             self.cache = sorted([serialize_event(e, source) for e, source in rows],
                                 key=lambda e: (e["timestamp"], e["evidence_id"]))

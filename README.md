@@ -124,6 +124,7 @@ Khoảng thời gian demo là `2026-10-14T08:00:00Z` đến `2026-10-14T09:00:00
 
 ## Chức năng hiện có
 
+- Nhập trực tiếp EVTX và Windows JSON Lines OTRF (mặc định 100 MiB/tệp). Trường nguồn được xác định theo từng bản ghi. [Hướng dẫn kiểm thử thư mục testcase](docs/TESTCASE_WINDOWS.md).
 - Sysmon Windows Event XML và JSONL schema đơn giản với `timestamp`, `host`, `event_id`, `description` cùng các trường bổ sung.
 - Zeek `conn`, `dns`, `http` JSON Lines và TSV có `#fields`/`#types`, upload atomic tối đa 5 MB.
 - Evidence UUID, raw fields/dòng JSONL hoặc TSV, SHA-256 file, record position, provenance và UTC.

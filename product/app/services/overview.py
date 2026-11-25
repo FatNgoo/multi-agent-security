@@ -4,11 +4,11 @@ from datetime import timedelta
 from sqlalchemy import BigInteger, String, cast, extract, func, select
 
 from app.common import iso, utc
-from app.db.models import Alert, Dataset, Event
+from app.db.models import Alert, Dataset, Event, event_source
 
 
 def overview(db, source, hours):
-    filters = [] if source == "all" else [Dataset.source == source]
+    filters = [] if source == "all" else [event_source == source]
 
     def query(*cols):
         return select(*cols).select_from(Event).join(Dataset).where(*filters)
@@ -27,14 +27,14 @@ def overview(db, source, hours):
     epoch = (cast(func.strftime("%s", func.substr(cast(Event.timestamp, String), 1, 19)), BigInteger) if db.bind.dialect.name == "sqlite"
              else func.floor(extract("epoch", Event.timestamp)))
     bucket = cast(func.floor(epoch / step), BigInteger)
-    bins = db.execute(query(bucket, Dataset.source, func.count()).group_by(bucket, Dataset.source).order_by(bucket)).all()
+    bins = db.execute(query(bucket, event_source, func.count()).group_by(bucket, event_source).order_by(bucket)).all()
     for slot, name, count in bins:
         data["bins"].append({"ts": slot * step, "source": name, "count": count})
         data["sources"][name] = data["sources"].get(name, 0) + count
-    types = db.execute(query(Dataset.source, Event.event_id, func.count()).group_by(Dataset.source, Event.event_id)
-                       .order_by(func.count().desc(), Dataset.source, Event.event_id).limit(8))
+    types = db.execute(query(event_source, Event.event_id, func.count()).group_by(event_source, Event.event_id)
+                       .order_by(func.count().desc(), event_source, Event.event_id).limit(8))
     data["types"] = [{"source": name, "event_id": eid, "count": count} for name, eid, count in types]
-    rows = db.execute(query(Event.id, Event.timestamp, Dataset.source, Dataset.filename, Event.host,
+    rows = db.execute(query(Event.id, Event.timestamp, event_source, Dataset.filename, Event.host,
                             Event.event_id, Event.record_index)
                       .order_by(Event.timestamp.desc(), Event.id).limit(12))
     data["recent"] = [dict(evidence_id=eid, timestamp=iso(ts), source=name, filename=file, host=host,

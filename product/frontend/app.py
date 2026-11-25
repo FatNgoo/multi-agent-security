@@ -15,7 +15,7 @@ import import_ui
 import overview_ui
 
 API_BASE_URL = os.getenv("API_BASE_URL", "http://localhost:8000").rstrip("/")
-SOURCES = ["sysmon", "zeek_conn", "zeek_dns", "zeek_http"]
+SOURCES = list(overview_ui.SOURCE_NAMES)
 SOURCE_NAMES = overview_ui.SOURCE_NAMES
 SEVERITIES = ["critical", "high", "medium", "low", "informational", "unknown"]
 LEVELS = dict(zip(SEVERITIES, ["Nghiêm trọng", "Cao", "Trung bình", "Thấp", "Thông tin", "Chưa xác định"]))
@@ -436,7 +436,7 @@ def results_view(result):
         observations = []
         for agent, title, has_source in [
             ("persistence", "Duy trì truy cập", "sysmon" in sources),
-            ("c2", "Dấu hiệu C2", bool(sources.intersection(SOURCES[1:]))),
+            ("c2", "Dấu hiệu C2", any(s.startswith("zeek_") for s in sources)),
         ]:
             titles = dict.fromkeys(FINDING_TITLES.get(f["rule_id"], f["title"]) for f in findings if f.get("agent") == agent)
             count = sum(f.get("agent") == agent for f in findings)
@@ -501,7 +501,9 @@ def datasets_page():
     left, right = st.columns([2, 1])
     query = left.text_input("Tìm dataset", placeholder="Tên tệp, host, IP…")
     source_filter = right.selectbox("Lọc theo nguồn", ["all"] + SOURCES, format_func=lambda s: "Tất cả nguồn" if s == "all" else SOURCE_NAMES[s])
-    datasets = [d for d in items[:100] if (source_filter == "all" or d["source"] == source_filter) and query.casefold() in json.dumps(d, ensure_ascii=False).casefold()]
+    datasets = [d for d in items[:100] if (source_filter == "all" or d["source"] == source_filter or
+                source_filter in d.get("metadata", {}).get("source_counts", {})) and
+                query.casefold() in json.dumps(d, ensure_ascii=False).casefold()]
     if datasets:
         st.dataframe([{"Tên tệp": d["filename"], "Nguồn": SOURCE_NAMES.get(d["source"], d["source"]), "Bản ghi": d["total_records"], "Bắt đầu (UTC)": stamp(d.get("metadata", {}).get("start_time"), True), "Kết thúc (UTC)": stamp(d.get("metadata", {}).get("end_time"), True), "Nhập lúc (UTC)": stamp(d.get("created_at"), True)} for d in datasets], hide_index=True, width="stretch")
         d = st.selectbox("Xem thông tin tệp", datasets, format_func=lambda d: f"{d['filename']} · {d['dataset_id'][:8]}")
@@ -531,7 +533,10 @@ SOURCE_COLORS = overview_ui.SOURCE_COLORS
 
 
 def source_profile(datasets, title):
-    counts = {source: sum(d["total_records"] for d in datasets if d["source"] == source) for source in SOURCES}
+    counts = dict.fromkeys(SOURCES, 0)
+    for d in datasets:
+        for source, n in (d.get("metadata", {}).get("source_counts") or {d["source"]: d["total_records"]}).items():
+            counts[source] += n
     total = sum(counts.values())
     with st.container(border=True, key="source_profile"):
         section(title)

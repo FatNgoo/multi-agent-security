@@ -90,14 +90,14 @@ Mở **Nhập log**, chọn các tệp, kiểm tra nguồn, số bản ghi và t
 
 | File | Loại log cần chọn |
 |---|---|
+| Windows EVTX hoặc JSON Lines OTRF | Tự nhận diện theo provider từng bản ghi |
+| IIS W3C hoặc Apache access | Web access |
 | Sysmon Event Viewer `*.xml` hoặc JSONL schema ứng dụng | Sysmon |
 | Zeek `conn.log`/JSONL/TSV | Zeek · Kết nối |
 | Zeek `dns.log`/JSONL/TSV | Zeek · DNS |
 | Zeek `http.log`/JSONL/TSV | Zeek · HTTP |
 
-Không upload `.evtx`, `.pcap`, `database.dump`, report hay `*.stored-events.jsonl` như
-log đầu vào. Giữ các file này để lưu trữ/đối chiếu. Giới hạn mặc định mỗi file là
-5.000.000 byte. Sysmon XML cần một `<Event>` hoặc `<Events>` hợp lệ; Zeek JSON cần
+Nhập trực tiếp EVTX hoặc JSON OTRF đến 100 MiB mỗi tệp. Giữ PCAP gốc và nhập log do Zeek trích xuất. Các định dạng văn bản khác có giới hạn mặc định 5.000.000 byte. [Kiểm thử thư mục testcase](TESTCASE_WINDOWS.md). Sysmon XML cần một `<Event>` hoặc `<Events>` hợp lệ; Zeek JSON cần
 mỗi dòng một object, không phải mảng JSON.
 
 Ghi lại tên tệp, số bản ghi và SHA-256. Giao diện dùng lại dataset khi nhập cùng nội dung và nguồn. API trực tiếp hỗ trợ tạo dataset riêng khi bỏ tùy chọn `reuse_existing`. Các tệp khác hash vẫn có thể chứa sự kiện trùng hoặc khoảng thu chồng lấn. [Cách đối chiếu với máy thật](DOI_CHIEU_LOG.md).

@@ -460,8 +460,7 @@ về <code>verification/logs/captures/&lt;case-id&gt;/</code> và kiểm tra th�
 <li>Tệp mẫu để làm quen giao diện: mở <code>verification/logs/samples/</code>. Những file này luôn
 nằm riêng trên ổ đĩa và không xuất hiện trong sản phẩm cho tới khi bạn upload.</li>
 </ul>
-<p>Trong giao diện sản phẩm, vào <strong>Dữ liệu log</strong> → chọn loại log → chọn file → bấm
-<strong>Nhập &amp; kiểm tra dữ liệu</strong>. Đối chiếu bảng sau:</p>
+<p>Mở <strong>Nhập log</strong>, chọn tệp và kiểm tra số bản ghi ở bảng xem trước. Nhấn <strong>Lưu</strong> để nhập vào kho.</p>
 <table>
 <thead>
 <tr>
@@ -471,6 +470,8 @@ nằm riêng trên ổ đĩa và không xuất hiện trong sản phẩm cho t�
 </thead>
 <tbody>
 <tr>
+<td>Windows EVTX hoặc JSON OTRF</td><td>Tự nhận diện từng provider</td>
+</tr><tr>
 <td>Sysmon Event Viewer <code>*.xml</code> hoặc JSONL schema ứng dụng</td>
 <td>Sysmon</td>
 </tr>
@@ -488,12 +489,7 @@ nằm riêng trên ổ đĩa và không xuất hiện trong sản phẩm cho t�
 </tr>
 </tbody>
 </table>
-<p>Không upload <code>.evtx</code>, <code>.pcap</code>, <code>database.dump</code>, report hay <code>*.stored-events.jsonl</code> như
-log đầu vào. Giữ các file này để lưu trữ/đối chiếu. Giới hạn mặc định mỗi file là
-5.000.000 byte. Sysmon XML cần một <code>&lt;Event&gt;</code> hoặc <code>&lt;Events&gt;</code> hợp lệ; Zeek JSON cần
-mỗi dòng một object, không phải mảng JSON.</p>
-<p>Ghi lại filename, số record, dataset UUID và SHA-256. Upload lại cùng file sẽ tạo
-dataset khác; chỉ chọn một bản khi phân tích để tránh đếm lặp.</p>
+<p>EVTX và JSON OTRF hỗ trợ tối đa 100 MiB/tệp theo mặc định. Với PCAP, nhập các tệp log do Zeek trích xuất. Đối chiếu SHA-256 trong bảng xem trước. Khi lưu lại cùng nội dung và nguồn, giao diện dùng lại dataset đã có. <a href="TESTCASE_WINDOWS.md">Hướng dẫn chạy bộ testcase tải về</a>.</p>
 <p>Sau upload, số tệp log tăng. <strong>Cảnh báo và kết quả chưa tự xuất hiện</strong>: bạn còn phải
 bắt đầu một lượt phân tích. Điều này giúp bạn kiểm soát từng thao tác thử nghiệm.</p>
 <h2 id="6-tự-chạy-phân-tích">6. Tự chạy phân tích</h2>
